@@ -133,6 +133,7 @@ import {
   getChannel,
   getChannelKey,
   getGroups,
+  getModelsByChannelType,
   getPrefillGroups,
   refreshCodexCredential,
 } from '../../api'
@@ -682,6 +683,12 @@ export function ChannelMutateDrawer({
     queryFn: () => getPrefillGroups('model'),
   })
 
+  // Fetch models grouped by channel type
+  const { data: channelTypeModelsData } = useQuery({
+    queryKey: ['channel_type_models'],
+    queryFn: getModelsByChannelType,
+  })
+
   const { copyToClipboard } = useCopyToClipboard()
 
   const {
@@ -889,6 +896,12 @@ export function ChannelMutateDrawer({
   // Get basic models for the current channel type
   const basicModels = useMemo(() => {
     if (!allModelsList.length) return []
+    // If we have channel-type-specific models from the server, use them
+    const channelTypeMap = channelTypeModelsData?.data
+    if (channelTypeMap) {
+      const specific = channelTypeMap[String(currentType)]
+      if (specific && specific.length > 0) return specific
+    }
     // Filter models based on common patterns for specific types
     if (currentType === 1) {
       return allModelsList.filter(
@@ -896,7 +909,7 @@ export function ChannelMutateDrawer({
       )
     }
     return allModelsList
-  }, [allModelsList, currentType])
+  }, [allModelsList, currentType, channelTypeModelsData])
 
   // Get prefill groups
   const prefillGroups = useMemo(
