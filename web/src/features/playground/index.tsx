@@ -16,16 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
+import { VideoInputForm } from './components/video-input-form'
+import { VideoPlayer } from './components/video-player'
+import { VideoTaskQueue } from './components/video-task-queue'
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundInput } from './components/input/playground-input'
+import { HAPPYHORSE_MODEL_PREFIX } from './constants'
 import {
   useChatHandler,
   usePlaygroundConversation,
   usePlaygroundOptions,
   usePlaygroundState,
+  useVideoTask,
 } from './hooks'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { VideoModelType, VideoTaskItem } from './types'
 
 export function Playground() {
+  const { t } = useTranslation()
   const {
     config,
     parameterEnabled,
@@ -61,6 +73,17 @@ export function Playground() {
     sendChat,
   })
 
+  const {
+    tasks,
+    isSubmitting,
+    submitError,
+    submitTask,
+    clearFinishedTasks,
+    removeTask,
+  } = useVideoTask()
+
+  const [previewTask, setPreviewTask] = useState<VideoTaskItem | null>(null)
+
   const handleClearMessages = () => {
     handleEditOpenChange(false)
     clearMessages()
@@ -74,9 +97,27 @@ export function Playground() {
     updateConfig,
   })
 
-  return (
-    <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
-      {/* Full-width scroll container: scrolling works even over side whitespace */}
+  const hasVideoModels = models.some((m) =>
+    m.value.startsWith(HAPPYHORSE_MODEL_PREFIX)
+  )
+
+  const handleVideoSubmit = async (
+    req: Parameters<typeof submitTask>[0],
+    apiKey: string,
+    tokenId: number,
+    meta?: { size?: string; duration?: number; type?: VideoModelType }
+  ) => {
+    try {
+      await submitTask(req, apiKey, tokenId, meta)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t('Failed to submit video task')
+      )
+    }
+  }
+
+  const chatPanel = (
+    <>
       <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
         <PlaygroundChat
           messages={messages}
@@ -93,7 +134,6 @@ export function Playground() {
         />
       </div>
 
-      {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           config={config}
@@ -115,6 +155,101 @@ export function Playground() {
           hasMessages={messages.length > 0}
         />
       </div>
+    </>
+  )
+
+  if (!hasVideoModels) {
+    return (
+      <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
+        {chatPanel}
+      </div>
+    )
+  }
+
+  return (
+    <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
+      <Tabs
+        className='flex size-full min-h-0 flex-col overflow-hidden'
+        defaultValue='chat'
+      >
+        <div className='flex shrink-0 justify-center border-b px-4 pt-2'>
+          <TabsList>
+            <TabsTrigger value='chat'>{t('Chat')}</TabsTrigger>
+            <TabsTrigger value='video'>{t('Video')}</TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent
+          className='flex min-h-0 flex-1 flex-col overflow-hidden'
+          value='chat'
+        >
+          {chatPanel}
+        </TabsContent>
+
+        <TabsContent
+          className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
+          value='video'
+        >
+          <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
+            <VideoInputForm
+              models={models}
+              isSubmitting={isSubmitting}
+              onSubmit={handleVideoSubmit}
+            />
+          </div>
+          <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
+            {previewTask ? (
+              <VideoPlayer
+                task={previewTask}
+                onClose={() => setPreviewTask(null)}
+              />
+            ) : null}
+            {!previewTask &&
+            tasks.some(
+              (task) =>
+                task.status === 'queued' || task.status === 'in_progress'
+            ) ? (
+              <div className='border-border bg-background rounded-xl border shadow-sm'>
+                <div className='flex items-center justify-between border-b px-4 py-2'>
+                  <div className='flex flex-1 flex-col gap-1.5'>
+                    <Skeleton className='h-3 w-24' />
+                    <Skeleton className='h-4 w-48' />
+                  </div>
+                </div>
+                <div className='p-3'>
+                  <Skeleton className='aspect-video w-full rounded-lg' />
+                </div>
+                <div className='border-t px-4 py-2'>
+                  <Skeleton className='h-3 w-3/4' />
+                </div>
+              </div>
+            ) : null}
+            {submitError ? (
+              <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
+                {submitError}
+              </div>
+            ) : null}
+            <VideoTaskQueue
+              tasks={tasks}
+              onPreview={setPreviewTask}
+              onRemove={(id) => {
+                if (previewTask?.id === id) setPreviewTask(null)
+                removeTask(id)
+              }}
+              onClearFinished={() => {
+                if (
+                  previewTask &&
+                  (previewTask.status === 'completed' ||
+                    previewTask.status === 'failed')
+                ) {
+                  setPreviewTask(null)
+                }
+                clearFinishedTasks()
+              }}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
