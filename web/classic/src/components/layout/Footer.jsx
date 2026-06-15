@@ -21,6 +21,7 @@ import React, { useEffect, useState, useMemo, useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Typography } from '@douyinfe/semi-ui';
 import { getFooterHTML, getLogo, getSystemName } from '../../helpers';
+import { DEFAULT_SYSTEM_NAME, PROJECT_REPOSITORY_URL } from '../../constants';
 import { StatusContext } from '../../context/Status';
 
 const FooterBar = () => {
@@ -200,12 +201,12 @@ const FooterBar = () => {
               {t('设计与开发由')}{' '}
             </span>
             <a
-              href='https://github.com/QuantumNous/new-api'
+              href={PROJECT_REPOSITORY_URL}
               target='_blank'
               rel='noopener noreferrer'
               className='!text-semi-color-primary font-medium'
             >
-              New API
+              {DEFAULT_SYSTEM_NAME}
             </a>
           </div>
         </div>
@@ -232,12 +233,12 @@ const FooterBar = () => {
                 {t('设计与开发由')}{' '}
               </span>
               <a
-                href='https://github.com/QuantumNous/new-api'
+                href={PROJECT_REPOSITORY_URL}
                 target='_blank'
                 rel='noopener noreferrer'
                 className='!text-semi-color-primary font-medium'
               >
-                New API
+                {DEFAULT_SYSTEM_NAME}
               </a>
             </div>
           </div>

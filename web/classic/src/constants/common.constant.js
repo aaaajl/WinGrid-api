@@ -17,6 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+export const DEFAULT_SYSTEM_NAME = 'WinGrid API';
+export const PROJECT_REPOSITORY_URL = 'https://github.com/aaaajl/WinGrid-api';
+
 export const ITEMS_PER_PAGE = 10; // this value must keep same as the one defined in backend!
 
 export const DEFAULT_ENDPOINT = '/api/pricing';
