@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 export const DEFAULT_SYSTEM_NAME = 'WinGrid API';
+export const DEFAULT_SERVER_ADDRESS = 'https://api.wingrid.tech';
 export const PROJECT_REPOSITORY_URL = 'https://github.com/aaaajl/WinGrid-api';
 
 export const ITEMS_PER_PAGE = 10; // this value must keep same as the one defined in backend!

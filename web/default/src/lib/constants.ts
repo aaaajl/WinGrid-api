@@ -23,6 +23,7 @@ For commercial licensing, please contact support@quantumnous.com
 // System Configuration Defaults
 export const DEFAULT_SYSTEM_NAME = 'WinGrid API'
 export const DEFAULT_LOGO = '/logo.png'
+export const DEFAULT_SERVER_ADDRESS = 'https://api.wingrid.tech'
 export const PROJECT_REPOSITORY_URL = 'https://github.com/aaaajl/WinGrid-api'
 
 // LocalStorage Keys

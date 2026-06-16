@@ -32,7 +32,7 @@ const defaultSiteSettings: SiteSettings = {
   Footer: '',
   About: '',
   HomePageContent: '',
-  ServerAddress: '',
+  ServerAddress: 'https://api.wingrid.tech',
   'legal.user_agreement': '',
   'legal.privacy_policy': '',
   HeaderNavModules: '',
