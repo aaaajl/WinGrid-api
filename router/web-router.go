@@ -37,10 +37,10 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 			return
 		}
 		c.Header("Cache-Control", "no-cache")
-		if common.GetTheme() == "classic" {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
-		} else {
+		if common.IsDefaultThemeHomePath(c.Request.URL.Path) || common.GetTheme() != "classic" {
 			c.Data(http.StatusOK, "text/html; charset=utf-8", assets.DefaultIndexPage)
+			return
 		}
+		c.Data(http.StatusOK, "text/html; charset=utf-8", assets.ClassicIndexPage)
 	})
 }

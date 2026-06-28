@@ -164,10 +164,15 @@ func DeleteHistoryLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	requestLogCount, err := model.DeleteOldRequestLog(c.Request.Context(), targetTimestamp, 100)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    count,
+		"data":    count + requestLogCount,
 	})
 	return
 }

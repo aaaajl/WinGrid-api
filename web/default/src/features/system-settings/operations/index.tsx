@@ -51,6 +51,12 @@ const defaultOperationsSettings: OperationsSettings = {
   WorkerValidKey: '',
   WorkerAllowHttpImageRequestEnabled: false,
   LogConsumeEnabled: false,
+  'request_log_setting.enabled': false,
+  'request_log_setting.max_body_kb': 1024,
+  'request_log_setting.retention_days': 7,
+  'request_log_setting.store_headers': true,
+  'request_log_setting.redact_headers':
+    'Authorization,Cookie,x-api-key,x-goog-api-key',
   'performance_setting.disk_cache_enabled': false,
   'performance_setting.disk_cache_threshold_mb': 10,
   'performance_setting.disk_cache_max_size_mb': 1024,

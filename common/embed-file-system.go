@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/static"
 )
@@ -50,18 +51,37 @@ type themeAwareFileSystem struct {
 	classicFS static.ServeFileSystem
 }
 
-func (t *themeAwareFileSystem) Exists(prefix string, path string) bool {
+func (t *themeAwareFileSystem) activeFS() static.ServeFileSystem {
 	if GetTheme() == "classic" {
-		return t.classicFS.Exists(prefix, path)
+		return t.classicFS
 	}
-	return t.defaultFS.Exists(prefix, path)
+	return t.defaultFS
+}
+
+func (t *themeAwareFileSystem) Exists(prefix string, path string) bool {
+	activeFS := t.activeFS()
+	if activeFS.Exists(prefix, path) {
+		return true
+	}
+	if activeFS != t.defaultFS {
+		return t.defaultFS.Exists(prefix, path)
+	}
+	return false
 }
 
 func (t *themeAwareFileSystem) Open(name string) (http.File, error) {
-	if GetTheme() == "classic" {
-		return t.classicFS.Open(name)
+	activeFS := t.activeFS()
+	file, err := activeFS.Open(name)
+	if err == nil || activeFS == t.defaultFS {
+		return file, err
 	}
 	return t.defaultFS.Open(name)
+}
+
+// IsDefaultThemeHomePath reports whether the path should be served by the
+// default-theme SPA (Landing page at /home).
+func IsDefaultThemeHomePath(path string) bool {
+	return path == "/home" || strings.HasPrefix(path, "/home/")
 }
 
 func NewThemeAwareFS(defaultFS, classicFS static.ServeFileSystem) static.ServeFileSystem {

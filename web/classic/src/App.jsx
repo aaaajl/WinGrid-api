@@ -61,6 +61,13 @@ function DynamicOAuth2Callback() {
   return <OAuth2Callback type={provider} />;
 }
 
+function DefaultThemeHomeRedirect() {
+  React.useEffect(() => {
+    window.location.assign(`${window.location.origin}/home`);
+  }, []);
+  return <Loading />;
+}
+
 function App() {
   const location = useLocation();
   const [statusState] = useContext(StatusContext);
@@ -98,6 +105,7 @@ function App() {
             </Suspense>
           }
         />
+        <Route path='/home' element={<DefaultThemeHomeRedirect />} />
         <Route
           path='/setup'
           element={

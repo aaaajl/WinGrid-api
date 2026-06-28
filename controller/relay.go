@@ -68,6 +68,11 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
+	if relayFormat != types.RelayFormatOpenAIRealtime {
+		defer func() {
+			service.MaybeRecordRequestLog(c, string(relayFormat))
+		}()
+	}
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
@@ -412,6 +417,12 @@ func RelayMidjourney(c *gin.Context) {
 		return
 	}
 
+	if service.ShouldRecordMidjourneyRequestLog(relayInfo.RelayMode) {
+		defer func() {
+			service.MaybeRecordRequestLog(c, string(types.RelayFormatMjProxy))
+		}()
+	}
+
 	var mjErr *dto.MidjourneyResponse
 	switch relayInfo.RelayMode {
 	case relayconstant.RelayModeMidjourneyNotify:
@@ -483,6 +494,10 @@ func RelayTaskFetch(c *gin.Context) {
 }
 
 func RelayTask(c *gin.Context) {
+	defer func() {
+		service.MaybeRecordRequestLog(c, string(types.RelayFormatTask))
+	}()
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &dto.TaskError{

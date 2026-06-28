@@ -100,6 +100,19 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultRequestLogSettings={{
+          'request_log_setting.enabled':
+            settings['request_log_setting.enabled'] ?? false,
+          'request_log_setting.max_body_kb':
+            settings['request_log_setting.max_body_kb'] ?? 1024,
+          'request_log_setting.retention_days':
+            settings['request_log_setting.retention_days'] ?? 7,
+          'request_log_setting.store_headers':
+            settings['request_log_setting.store_headers'] ?? true,
+          'request_log_setting.redact_headers':
+            settings['request_log_setting.redact_headers'] ??
+            'Authorization,Cookie,x-api-key,x-goog-api-key',
+        }}
       />
     ),
   },
