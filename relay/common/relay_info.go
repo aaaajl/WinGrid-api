@@ -169,6 +169,10 @@ type RelayInfo struct {
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
 
+	// DurationBilling is set when billing mode is per_duration. It records the
+	// resolved size / duration / base price used for pre-consume.
+	DurationBilling *DurationBillingInfo
+
 	Request dto.Request
 
 	// RequestConversionChain records request format conversions in order, e.g.
@@ -846,6 +850,16 @@ type TaskSubmitReq struct {
 	Seconds        string                 `json:"seconds,omitempty"`
 	InputReference string                 `json:"input_reference,omitempty"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// DurationBillingInfo captures per_duration pre-consume inputs for logging and
+// billing-context persistence.
+type DurationBillingInfo struct {
+	Size         string  `json:"size,omitempty"`
+	Duration     int     `json:"duration,omitempty"`
+	BasePrice    float64 `json:"base_price,omitempty"`
+	CostUSD      float64 `json:"cost_usd,omitempty"`
+	UsedFallback bool    `json:"used_fallback,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {

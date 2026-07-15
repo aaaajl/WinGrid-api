@@ -30,6 +30,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
+	_ "github.com/QuantumNous/new-api/setting/request_log_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -113,6 +114,8 @@ func main() {
 
 	// 数据看板
 	go model.UpdateQuotaData()
+
+	service.StartRequestLogCleanupTask()
 
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))

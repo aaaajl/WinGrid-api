@@ -23,6 +23,14 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	// 支持任务仅按次计费
 	if common.StringsContains(constant.TaskPricePatches, info.OriginModelName) {
 		logContent = fmt.Sprintf("%s，按次计费", logContent)
+	} else if info.DurationBilling != nil {
+		db := info.DurationBilling
+		sizeLabel := db.Size
+		if sizeLabel == "" {
+			sizeLabel = "fallback"
+		}
+		logContent = fmt.Sprintf("%s，按时长计费：size=%s, duration=%d, base_price=%.4f, cost_usd=%.4f",
+			logContent, sizeLabel, db.Duration, db.BasePrice, db.CostUSD)
 	} else {
 		if otherRatios := info.PriceData.OtherRatios(); len(otherRatios) > 0 {
 			var contents []string
@@ -46,6 +54,14 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	other["group_ratio"] = info.PriceData.GroupRatioInfo.GroupRatio
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = info.PriceData.GroupRatioInfo.GroupSpecialRatio
+	}
+	if info.DurationBilling != nil {
+		other["billing_mode"] = "per_duration"
+		other["size"] = info.DurationBilling.Size
+		other["duration"] = info.DurationBilling.Duration
+		other["base_price"] = info.DurationBilling.BasePrice
+		other["cost_usd"] = info.DurationBilling.CostUSD
+		other["used_fallback"] = info.DurationBilling.UsedFallback
 	}
 	if info.IsModelMapped {
 		other["is_model_mapped"] = true

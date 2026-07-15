@@ -32,6 +32,12 @@ export type ModelPricingSnapshotInput = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  durationPricing: string
+}
+
+export type DurationPricingConfig = {
+  fallback_price?: number
+  size_prices?: Record<string, number>
 }
 
 export type ModelPricingSnapshot = {
@@ -47,6 +53,8 @@ export type ModelPricingSnapshot = {
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
+  fallbackPrice?: string
+  sizePrices?: { size: string; price: string }[]
   hasConflict: boolean
 }
 
@@ -64,6 +72,7 @@ export const hasPricingValue = (value?: string) =>
 export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
   !snapshot ||
   (snapshot.billingMode !== 'tiered_expr' &&
+    snapshot.billingMode !== 'per_duration' &&
     !hasPricingValue(snapshot.price) &&
     !hasPricingValue(snapshot.ratio))
 
@@ -83,14 +92,16 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'per_duration') return 'Per-duration'
   return 'Per-token'
 }
 
 export const getModeVariant = (
   mode?: string
-): 'warning' | 'info' | 'success' => {
+): 'warning' | 'info' | 'success' | 'neutral' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'per_duration') return 'neutral'
   return 'success'
 }
 
@@ -111,6 +122,12 @@ export const getPriceSummary = (
 ) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
+  }
+  if (row.billingMode === 'per_duration') {
+    const count = row.sizePrices?.length || 0
+    return count > 0
+      ? `${t('Per-duration')} · ${count} ${t('sizes')}`
+      : t('Per-duration')
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -141,6 +158,11 @@ export const getPriceDetail = (
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  if (row.billingMode === 'per_duration') {
+    return row.fallbackPrice
+      ? `${t('Fallback')} $${row.fallbackPrice}/s`
+      : t('Size × duration pricing')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
@@ -174,6 +196,7 @@ export const buildModelSnapshots = ({
   audioCompletionRatio,
   billingMode,
   billingExpr,
+  durationPricing,
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -215,6 +238,12 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'billing expression',
   })
+  const durationPricingMap = safeJsonParse<
+    Record<string, DurationPricingConfig>
+  >(durationPricing, {
+    fallback: {},
+    context: 'duration pricing',
+  })
 
   const modelNames = new Set([
     ...Object.keys(priceMap),
@@ -227,6 +256,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
     ...Object.keys(billingExprMap),
+    ...Object.keys(durationPricingMap),
   ])
 
   return Array.from(modelNames).map((name) => {
@@ -249,6 +279,32 @@ export const buildModelSnapshots = ({
         billingMode: 'tiered_expr',
         billingExpr: pureExpr,
         requestRuleExpr,
+        price,
+        ratio,
+        cacheRatio: cache,
+        createCacheRatio: createCache,
+        completionRatio: completion,
+        imageRatio: image,
+        audioRatio: audio,
+        audioCompletionRatio: audioCompletion,
+        hasConflict: false,
+      }
+    }
+
+    if (modeForModel === 'per_duration') {
+      const cfg = durationPricingMap[name] || {}
+      const sizePrices = Object.entries(cfg.size_prices || {}).map(
+        ([size, sizePrice]) => ({
+          size,
+          price: String(sizePrice),
+        })
+      )
+      return {
+        name,
+        billingMode: 'per_duration',
+        fallbackPrice:
+          cfg.fallback_price !== undefined ? String(cfg.fallback_price) : '',
+        sizePrices,
         price,
         ratio,
         cacheRatio: cache,
@@ -299,5 +355,7 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     billingMode: snapshot.billingMode || 'per-token',
     billingExpr: snapshot.billingExpr || '',
     requestRuleExpr: snapshot.requestRuleExpr || '',
+    fallbackPrice: snapshot.fallbackPrice || '',
+    sizePrices: snapshot.sizePrices || [],
   })
 }

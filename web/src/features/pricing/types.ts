@@ -54,6 +54,11 @@ export type PricingModel = {
   billing_mode?: string
   /** Raw expression describing dynamic / tiered billing */
   billing_expr?: string
+  /** Per-duration pricing config when billing_mode is "per_duration" */
+  duration_pricing?: {
+    fallback_price: number
+    size_prices?: Record<string, number>
+  }
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**

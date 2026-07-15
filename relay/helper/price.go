@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/durationbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
@@ -187,6 +188,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hosttypes.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
 
+	if billing_setting.IsPerDurationBilling(info.OriginModelName) {
+		return modelPriceHelperPerDuration(c, info, groupRatioInfo)
+	}
+
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
 	var modelRatio float64
@@ -252,7 +257,79 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 	return priceData, nil
 }
 
+func modelPriceHelperPerDuration(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+	cfg, ok := billing_setting.GetDurationPricing(info.OriginModelName)
+	if !ok {
+		return types.PriceData{}, fmt.Errorf("model %s is configured as per_duration but has no duration_pricing", info.OriginModelName)
+	}
+	if err := billing_setting.ValidateDurationPricing(cfg); err != nil {
+		return types.PriceData{}, fmt.Errorf("model %s duration_pricing invalid: %w", info.OriginModelName, err)
+	}
+
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return types.PriceData{}, fmt.Errorf("per_duration billing requires task request: %w", err)
+	}
+
+	duration, err := relaycommon.ResolveTaskBillingDuration(req)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	if duration < 1 || duration > relaycommon.MaxTaskDurationSeconds {
+		return types.PriceData{}, fmt.Errorf("seconds must be between 1 and %d", relaycommon.MaxTaskDurationSeconds)
+	}
+
+	sizeKey := relaycommon.ResolveTaskBillingSize(req)
+	costUSD, basePrice, usedFallback, err := durationbilling.CostUSD(durationbilling.Config{
+		FallbackPrice: cfg.FallbackPrice,
+		SizePrices:    cfg.SizePrices,
+	}, sizeKey, duration)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	quota, err := common.QuotaFromFloatStrict(costUSD * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 || costUSD == 0 {
+			quota = 0
+			freeModel = true
+		}
+	}
+
+	info.DurationBilling = &relaycommon.DurationBillingInfo{
+		Size:         sizeKey,
+		Duration:     duration,
+		BasePrice:    basePrice,
+		CostUSD:      costUSD,
+		UsedFallback: usedFallback,
+	}
+
+	priceData := types.PriceData{
+		FreeModel:      freeModel,
+		ModelPrice:     costUSD,
+		UsePrice:       true, // lock settle; PerCallBilling skips completion delta
+		Quota:          quota,
+		GroupRatioInfo: groupRatioInfo,
+	}
+
+	if common.DebugEnabled {
+		logger.LogDebug(c, "model_price_helper_per_duration: model=%s size=%s duration=%d basePrice=%g costUSD=%g quota=%d fallback=%v",
+			info.OriginModelName, sizeKey, duration, basePrice, costUSD, quota, usedFallback)
+	}
+
+	return priceData, nil
+}
+
 func HasModelBillingConfig(modelName string) bool {
+	if billing_setting.IsPerDurationBilling(modelName) {
+		cfg, ok := billing_setting.GetDurationPricing(modelName)
+		return ok && billing_setting.ValidateDurationPricing(cfg) == nil
+	}
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}

@@ -400,7 +400,19 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	if err := LOG_DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	if err := LOG_DB.AutoMigrate(&RequestLog{}); err != nil {
+		return err
+	}
+	// MySQL TEXT is 64KB; request_log body may be up to max_body_kb (default 1024KB).
+	if common.UsingLogDatabase(common.DatabaseTypeMySQL) {
+		if err := LOG_DB.Exec("ALTER TABLE request_log MODIFY body MEDIUMTEXT").Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateClickHouseLogDB() error {

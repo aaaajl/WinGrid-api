@@ -35,7 +35,14 @@ type Pricing struct {
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
+	DurationPricing        *DurationPricingPublic  `json:"duration_pricing,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
+}
+
+// DurationPricingPublic exposes per_duration size→$/s tables on the pricing API.
+type DurationPricingPublic struct {
+	FallbackPrice float64            `json:"fallback_price"`
+	SizePrices    map[string]float64 `json:"size_prices,omitempty"`
 }
 
 type PricingVendor struct {
@@ -400,10 +407,25 @@ func updatePricing() {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
 		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
+		if billingMode := billing_setting.GetBillingMode(model); billingMode == billing_setting.BillingModeTieredExpr {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
+			}
+		} else if billingMode == billing_setting.BillingModePerDuration {
+			if cfg, ok := billing_setting.GetDurationPricing(model); ok && billing_setting.ValidateDurationPricing(cfg) == nil {
+				pricing.BillingMode = billingMode
+				pricing.QuotaType = 1
+				copied := &DurationPricingPublic{
+					FallbackPrice: cfg.FallbackPrice,
+				}
+				if len(cfg.SizePrices) > 0 {
+					copied.SizePrices = make(map[string]float64, len(cfg.SizePrices))
+					for k, v := range cfg.SizePrices {
+						copied.SizePrices[k] = v
+					}
+				}
+				pricing.DurationPricing = copied
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

@@ -39,7 +39,24 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+export type PricingMode =
+  | 'per-token'
+  | 'per-request'
+  | 'tiered_expr'
+  | 'per_duration'
+
+export type DurationSizePriceRow = {
+  size: string
+  price: string
+}
+
+export const DEFAULT_DURATION_FALLBACK_PRICE = '10'
+export const DEFAULT_DURATION_SIZE_PRICES: DurationSizePriceRow[] = [
+  { size: '480P', price: '1' },
+  { size: '720P', price: '1' },
+  { size: '1080P', price: '2' },
+  { size: '4K', price: '10' },
+]
 
 export type LaneKey =
   | 'completion'
@@ -62,6 +79,8 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  fallbackPrice?: string
+  sizePrices?: DurationSizePriceRow[]
 }
 
 export type PreviewRow = {
@@ -215,7 +234,9 @@ export function buildPreviewRows(
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
-  t: (key: string) => string
+  t: (key: string) => string,
+  fallbackPrice = '',
+  sizePrices: DurationSizePriceRow[] = []
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
     const effectiveExpr = combineBillingExpr(billingExpr, requestRuleExpr)
@@ -225,6 +246,26 @@ export function buildPreviewRows(
         key: 'expr',
         label: t('Expression'),
         value: effectiveExpr || t('Empty'),
+        multiline: true,
+      },
+    ]
+  }
+
+  if (mode === 'per_duration') {
+    const sizeLines = sizePrices
+      .filter((row) => row.size.trim() !== '')
+      .map((row) => `${row.size.trim()}: $${row.price || '0'}/s`)
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'per_duration' },
+      {
+        key: 'fallback',
+        label: t('Fallback price'),
+        value: fallbackPrice ? `$${fallbackPrice}/s` : t('Empty'),
+      },
+      {
+        key: 'sizes',
+        label: t('Size prices'),
+        value: sizeLines.length > 0 ? sizeLines.join('\n') : t('Empty'),
         multiline: true,
       },
     ]

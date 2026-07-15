@@ -64,6 +64,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 import {
+  DEFAULT_DURATION_FALLBACK_PRICE,
+  DEFAULT_DURATION_SIZE_PRICES,
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
   buildPreviewRows,
@@ -74,6 +76,7 @@ import {
   numericDraftRegex,
   ratioFieldByLane,
   toNumberOrNull,
+  type DurationSizePriceRow,
   type LaneKey,
   type ModelPricingFormValues,
   type ModelRatioData,
@@ -155,6 +158,12 @@ export const ModelPricingEditorPanel = forwardRef<
   })
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  const [fallbackPrice, setFallbackPrice] = useState(
+    DEFAULT_DURATION_FALLBACK_PRICE
+  )
+  const [sizePrices, setSizePrices] = useState<DurationSizePriceRow[]>(
+    DEFAULT_DURATION_SIZE_PRICES
+  )
   const [editorReloadToken, setEditorReloadToken] = useState(0)
   const isEditMode = !!editData
 
@@ -191,12 +200,22 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode(
         editData.billingMode === 'tiered_expr'
           ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
+          : editData.billingMode === 'per_duration'
+            ? 'per_duration'
+            : editData.price
+              ? 'per-request'
+              : 'per-token'
       )
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setFallbackPrice(
+        editData.fallbackPrice || DEFAULT_DURATION_FALLBACK_PRICE
+      )
+      setSizePrices(
+        editData.sizePrices && editData.sizePrices.length > 0
+          ? editData.sizePrices
+          : DEFAULT_DURATION_SIZE_PRICES
+      )
     } else {
       form.reset({
         name: '',
@@ -212,6 +231,8 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setFallbackPrice(DEFAULT_DURATION_FALLBACK_PRICE)
+      setSizePrices(DEFAULT_DURATION_SIZE_PRICES)
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -338,6 +359,14 @@ export const ModelPricingEditorPanel = forwardRef<
     if (nextMode === 'tiered_expr' && !billingExpr) {
       setBillingExpr('tier("base", p * 0 + c * 0)')
     }
+    if (nextMode === 'per_duration') {
+      if (!fallbackPrice) {
+        setFallbackPrice(DEFAULT_DURATION_FALLBACK_PRICE)
+      }
+      if (sizePrices.length === 0) {
+        setSizePrices(DEFAULT_DURATION_SIZE_PRICES)
+      }
+    }
   }
 
   const watchedValues = form.watch()
@@ -351,15 +380,19 @@ export const ModelPricingEditorPanel = forwardRef<
         promptPrice,
         lanePrices,
         laneEnabled,
-        t
+        t,
+        fallbackPrice,
+        sizePrices
       ),
     [
       billingExpr,
+      fallbackPrice,
       laneEnabled,
       lanePrices,
       pricingMode,
       promptPrice,
       requestRuleExpr,
+      sizePrices,
       t,
       watchedValues,
     ]
@@ -435,8 +468,37 @@ export const ModelPricingEditorPanel = forwardRef<
       return false
     }
 
+    if (pricingMode === 'per_duration') {
+      const fallback = toNumberOrNull(fallbackPrice)
+      if (fallback === null || fallback <= 0) {
+        form.setError('price', {
+          message: t('Fallback price must be a positive number.'),
+        })
+        return false
+      }
+      for (const row of sizePrices) {
+        if (!row.size.trim()) continue
+        const price = toNumberOrNull(row.price)
+        if (price === null || price <= 0) {
+          form.setError('price', {
+            message: t('Each size price must be a positive number.'),
+          })
+          return false
+        }
+      }
+    }
+
     return true
-  }, [form, laneEnabled, lanePrices, pricingMode, promptPrice, t])
+  }, [
+    fallbackPrice,
+    form,
+    laneEnabled,
+    lanePrices,
+    pricingMode,
+    promptPrice,
+    sizePrices,
+    t,
+  ])
 
   const buildSubmitData = useCallback(
     (values: ModelPricingFormValues) => {
@@ -458,9 +520,19 @@ export const ModelPricingEditorPanel = forwardRef<
         data.requestRuleExpr = requestRuleExpr
       }
 
+      if (pricingMode === 'per_duration') {
+        data.fallbackPrice = fallbackPrice
+        data.sizePrices = sizePrices
+          .map((row) => ({
+            size: row.size.trim(),
+            price: row.price.trim(),
+          }))
+          .filter((row) => row.size !== '')
+      }
+
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [billingExpr, fallbackPrice, pricingMode, requestRuleExpr, sizePrices]
   )
 
   useImperativeHandle(
@@ -544,7 +616,7 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-3'>
+                  <TabsList className='grid w-full grid-cols-2 sm:grid-cols-4'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
@@ -553,6 +625,9 @@ export const ModelPricingEditorPanel = forwardRef<
                     </TabsTrigger>
                     <TabsTrigger value='tiered_expr'>
                       {t('Expression')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per_duration'>
+                      {t('Per-duration')}
                     </TabsTrigger>
                   </TabsList>
 
@@ -649,6 +724,107 @@ export const ModelPricingEditorPanel = forwardRef<
                         onBillingExprChange={setBillingExpr}
                         onRequestRuleExprChange={setRequestRuleExpr}
                       />
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='per_duration' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <Field>
+                        <FieldLabel>{t('Fallback price')}</FieldLabel>
+                        <InputGroup>
+                          <InputGroupAddon>$</InputGroupAddon>
+                          <InputGroupInput
+                            inputMode='decimal'
+                            placeholder='10'
+                            value={fallbackPrice}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              if (numericDraftRegex.test(value)) {
+                                setFallbackPrice(value)
+                              }
+                            }}
+                          />
+                          <InputGroupAddon align='inline-end'>
+                            {t('per second')}
+                          </InputGroupAddon>
+                        </InputGroup>
+                        <FieldDescription>
+                          {t(
+                            'USD per second when the request size is not listed below.'
+                          )}
+                        </FieldDescription>
+                      </Field>
+
+                      <Field>
+                        <FieldLabel>{t('Size prices')}</FieldLabel>
+                        <FieldDescription>
+                          {t(
+                            'USD per second for each size (for example 720P, 1080P). Total cost = basePrice × duration.'
+                          )}
+                        </FieldDescription>
+                        <div className='mt-2 grid gap-2'>
+                          {sizePrices.map((row, index) => (
+                            <div
+                              key={`size-price-${index}`}
+                              className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2'
+                            >
+                              <Input
+                                placeholder='720P'
+                                value={row.size}
+                                onChange={(event) => {
+                                  const next = [...sizePrices]
+                                  next[index] = {
+                                    ...row,
+                                    size: event.target.value,
+                                  }
+                                  setSizePrices(next)
+                                }}
+                              />
+                              <InputGroup>
+                                <InputGroupAddon>$</InputGroupAddon>
+                                <InputGroupInput
+                                  inputMode='decimal'
+                                  placeholder='1'
+                                  value={row.price}
+                                  onChange={(event) => {
+                                    const value = event.target.value
+                                    if (!numericDraftRegex.test(value)) return
+                                    const next = [...sizePrices]
+                                    next[index] = { ...row, price: value }
+                                    setSizePrices(next)
+                                  }}
+                                />
+                                <InputGroupAddon align='inline-end'>
+                                  /s
+                                </InputGroupAddon>
+                              </InputGroup>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                onClick={() => {
+                                  setSizePrices(
+                                    sizePrices.filter((_, i) => i !== index)
+                                  )
+                                }}
+                              >
+                                {t('Remove')}
+                              </Button>
+                            </div>
+                          ))}
+                          <Button
+                            type='button'
+                            variant='secondary'
+                            onClick={() =>
+                              setSizePrices([
+                                ...sizePrices,
+                                { size: '', price: '' },
+                              ])
+                            }
+                          >
+                            {t('Add size price')}
+                          </Button>
+                        </div>
+                      </Field>
                     </FieldGroup>
                   </TabsContent>
                 </Tabs>

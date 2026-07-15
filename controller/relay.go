@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -71,6 +72,11 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
+	if relayFormat != types.RelayFormatOpenAIRealtime {
+		defer func() {
+			service.MaybeRecordRequestLog(c, string(relayFormat))
+		}()
+	}
 	//group := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 	//originalModel := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
 
@@ -419,6 +425,12 @@ func RelayMidjourney(c *gin.Context) {
 		return
 	}
 
+	if service.ShouldRecordMidjourneyRequestLog(relayInfo.RelayMode) {
+		defer func() {
+			service.MaybeRecordRequestLog(c, string(types.RelayFormatMjProxy))
+		}()
+	}
+
 	var mjErr *taskdto.MidjourneyResponse
 	switch relayInfo.RelayMode {
 	case relayconstant.RelayModeMidjourneyNotify:
@@ -490,6 +502,10 @@ func RelayTaskFetch(c *gin.Context) {
 }
 
 func RelayTask(c *gin.Context) {
+	defer func() {
+		service.MaybeRecordRequestLog(c, string(types.RelayFormatTask))
+	}()
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatTask, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, &taskdto.TaskError{
@@ -597,6 +613,13 @@ func RelayTask(c *gin.Context) {
 			OtherRatios:     relayInfo.PriceData.OtherRatios(),
 			OriginModelName: relayInfo.OriginModelName,
 			PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
+		}
+		if db := relayInfo.DurationBilling; db != nil {
+			task.PrivateData.BillingContext.BillingMode = billing_setting.BillingModePerDuration
+			task.PrivateData.BillingContext.Size = db.Size
+			task.PrivateData.BillingContext.Duration = db.Duration
+			task.PrivateData.BillingContext.BasePrice = db.BasePrice
+			task.PrivateData.BillingContext.UsedFallback = db.UsedFallback
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData

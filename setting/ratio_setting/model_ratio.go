@@ -306,6 +306,10 @@ var defaultModelPrice = map[string]float64{
 	"happyhorse-1.0-i2v":        0.1,
 	"happyhorse-1.0-r2v":        0.1,
 	"happyhorse-1.0-video-edit": 0.1,
+	"happyhorse-1.1-t2v":        0.1,
+	"happyhorse-1.1-i2v":        0.1,
+	"happyhorse-1.1-r2v":        0.1,
+	"happyhorse-1.1-video-edit": 0.1,
 }
 
 var defaultAudioRatio = map[string]float64{
