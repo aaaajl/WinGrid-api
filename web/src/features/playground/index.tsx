@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { VideoInputForm } from './components/video-input-form'
@@ -83,6 +83,46 @@ export function Playground() {
   } = useVideoTask()
 
   const [previewTask, setPreviewTask] = useState<VideoTaskItem | null>(null)
+  // Skip auto-preview for tasks already completed when this session loaded
+  const autoPreviewedRef = useRef<Set<string> | null>(null)
+
+  useEffect(() => {
+    if (autoPreviewedRef.current === null) {
+      autoPreviewedRef.current = new Set(
+        tasks
+          .filter((task) => task.status === 'completed')
+          .map((task) => task.id)
+      )
+      return
+    }
+
+    const seen = autoPreviewedRef.current
+    const newlyCompleted = tasks.find(
+      (task) =>
+        task.status === 'completed' &&
+        task.videoUrl &&
+        !seen.has(task.id)
+    )
+    if (newlyCompleted) {
+      seen.add(newlyCompleted.id)
+    }
+
+    setPreviewTask((current) => {
+      if (newlyCompleted) return newlyCompleted
+      if (!current) return current
+      const updated = tasks.find((task) => task.id === current.id)
+      if (!updated) return null
+      if (
+        updated.status === current.status &&
+        updated.progress === current.progress &&
+        updated.videoUrl === current.videoUrl &&
+        updated.error === current.error
+      ) {
+        return current
+      }
+      return updated
+    })
+  }, [tasks])
 
   const handleClearMessages = () => {
     handleEditOpenChange(false)

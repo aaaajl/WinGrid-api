@@ -245,9 +245,13 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.REFERENCE_GENERATE ||
           log.action === TASK_ACTIONS.REMIX_GENERATE
         const isSuccess = status === TASK_STATUS.SUCCESS
-        const isUrl = failReason?.startsWith('http')
+        // Prefer result_url; fall back to fail_reason for legacy rows that stored the URL there
+        const resultUrl = log.result_url
+        const hasResultUrl =
+          typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl)
+        const hasLegacyUrl = !!failReason?.startsWith('http')
 
-        if (isSuccess && isVideoTask && isUrl) {
+        if (isSuccess && isVideoTask && (hasResultUrl || hasLegacyUrl)) {
           const videoUrl = `/v1/videos/${log.task_id}/content`
           return (
             <a

@@ -93,7 +93,9 @@ export const MESSAGE_ACTION_BUTTON_STYLES = {
 
 export const VIDEO_API_ENDPOINTS = {
   SUBMIT: '/v1/video/generations',
-  STATUS: (taskId: string) => `/v1/video/generations/${taskId}`,
+  // Poll OpenAI-compatible status so the response has status/metadata.url
+  // (GET /v1/video/generations/:id returns TaskDto wrapper instead).
+  STATUS: (taskId: string) => `/v1/videos/${taskId}`,
 } as const
 
 export const VIDEO_TASK_STATUS = {
