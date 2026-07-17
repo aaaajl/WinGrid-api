@@ -109,6 +109,19 @@ func GetAllModels(offset int, limit int) ([]*Model, error) {
 	return models, err
 }
 
+// GetEnabledCatalogModelsByNames returns enabled catalog rows for the given model names.
+func GetEnabledCatalogModelsByNames(names []string) ([]*Model, error) {
+	names = normalizeLookupValues(names)
+	if len(names) == 0 {
+		return []*Model{}, nil
+	}
+	var models []*Model
+	err := DB.Model(&Model{}).
+		Where("model_name IN ? AND status = ?", names, 1).
+		Find(&models).Error
+	return models, err
+}
+
 func GetBoundChannelsByModelsMap(modelNames []string) (map[string][]BoundChannel, error) {
 	result := make(map[string][]BoundChannel)
 	if len(modelNames) == 0 {

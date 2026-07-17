@@ -25,7 +25,7 @@ import {
   fetchTokenKey,
 } from '../api'
 import { VIDEO_POLLING_INTERVAL, STORAGE_KEYS_VIDEO } from '../constants'
-import type { VideoGenerationRequest, VideoTaskItem, VideoModelType } from '../types'
+import type { VideoGenerationRequest, VideoTaskItem, VideoRequestProfile } from '../types'
 
 function loadTasksFromStorage(): VideoTaskItem[] {
   try {
@@ -168,7 +168,7 @@ export function useVideoTask() {
       req: VideoGenerationRequest,
       apiKey: string,
       tokenId: number,
-      meta?: { size?: string; duration?: number; type?: VideoModelType }
+      meta?: { size?: string; duration?: number; profile?: VideoRequestProfile }
     ) => {
       setIsSubmitting(true)
       setSubmitError(null)
@@ -190,7 +190,7 @@ export function useVideoTask() {
           tokenId,
           ...(meta?.size ? { size: meta.size } : {}),
           ...(meta?.duration != null ? { duration: meta.duration } : {}),
-          ...(meta?.type ? { type: meta.type } : {}),
+          ...(meta?.profile ? { profile: meta.profile } : {}),
         }
         setTasks((prev) => [newTask, ...prev])
         startPolling(taskId, apiKey)

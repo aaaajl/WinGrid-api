@@ -27,6 +27,22 @@ import type { NameRule, ModelStatus, SyncSource } from './types'
 export const DEFAULT_PAGE_SIZE = 20
 
 // ============================================================================
+// Reserved Model Tags (catalog-managed)
+// ============================================================================
+
+export const RESERVED_MODEL_TAGS = [
+  't2t',
+  't2i',
+  't2v',
+  'i2v',
+  'r2v',
+  'v2v',
+  's2v',
+] as const
+
+export type ReservedModelTag = (typeof RESERVED_MODEL_TAGS)[number]
+
+// ============================================================================
 // Name Rule Options
 // ============================================================================
 

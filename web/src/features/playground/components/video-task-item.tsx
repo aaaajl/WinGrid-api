@@ -27,13 +27,21 @@ import {
   QueueItemActions,
   QueueItemAction,
 } from '@/components/ai-elements/queue'
-import { VIDEO_MODEL_TYPE_LABELS } from '../constants'
-import type { VideoTaskItem as VideoTaskItemType } from '../types'
+import type {
+  VideoRequestProfile,
+  VideoTaskItem as VideoTaskItemType,
+} from '../types'
 
 interface VideoTaskItemProps {
   task: VideoTaskItemType
   onPreview: (task: VideoTaskItemType) => void
   onRemove: (id: string) => void
+}
+
+const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
+  happyhorse: 'HappyHorse',
+  seedance: 'Seedance',
+  generic: 'Video',
 }
 
 const STATUS_COLORS: Record<VideoTaskItemType['status'], string> = {
@@ -67,9 +75,9 @@ export function VideoTaskItem({ task, onPreview, onRemove }: VideoTaskItemProps)
           {/* Model name + type badge + time */}
           <div className='flex items-center justify-between gap-2'>
             <div className='flex min-w-0 items-center gap-1.5'>
-              {task.type && (
+              {task.profile && (
                 <Badge variant='secondary' className='h-4 px-1 text-[10px]'>
-                  {VIDEO_MODEL_TYPE_LABELS[task.type]}
+                  {PROFILE_LABELS[task.profile]}
                 </Badge>
               )}
               <span className='text-muted-foreground truncate text-xs font-medium'>

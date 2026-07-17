@@ -167,11 +167,40 @@ export interface VideoGenerationRequest {
   duration?: number
   images?: string[]
   input_reference?: string
-  metadata?: {
-    prompt_extend?: boolean
-    seed?: number
-    watermark?: boolean
-  }
+  metadata?: Record<string, unknown>
+}
+
+export type VideoRequestProfile = 'happyhorse' | 'seedance' | 'generic'
+
+export interface HappyHorseCapabilities {
+  supported_sizes: string[]
+  duration_range: [number, number]
+  fields: string[]
+}
+
+export interface SeedanceCapabilities {
+  supported_resolutions: string[]
+  supported_ratios: string[]
+  duration_range: [number, number]
+  fields: string[]
+}
+
+export interface GenericCapabilities {
+  supported_sizes: string[]
+  duration_range: [number, number]
+  fields: string[]
+  form: 'generic'
+}
+
+export interface PlaygroundVideoModel {
+  model: string
+  tags: string[]
+  profile: VideoRequestProfile
+  label: string
+  capabilities:
+    | HappyHorseCapabilities
+    | SeedanceCapabilities
+    | GenericCapabilities
 }
 
 export interface VideoTaskResponse {
@@ -199,22 +228,64 @@ export interface VideoTaskItem {
   error?: string
   size?: string
   duration?: number
-  type?: VideoModelType
+  profile?: VideoRequestProfile
   tokenId?: number
 }
 
-export type VideoModelType =
-  | 'text-to-video'
-  | 'image-to-video'
-  | 'reference-to-video'
-  | 'video-edit'
+// ========== Image generation types ==========
 
-export interface VideoModelConfig {
+export type ImageRequestProfile =
+  | 'dalle2'
+  | 'dalle3'
+  | 'gpt_image'
+  | 'agnes_image'
+  | 'generic'
+
+export interface ImageCapabilities {
+  supported_sizes: string[]
+  n_range: [number, number]
+  fields: string[]
+}
+
+export interface PlaygroundImageModel {
   model: string
+  tags: string[]
+  profile: ImageRequestProfile
   label: string
-  type: VideoModelType
-  requiresImage: boolean
-  requiresVideo: boolean
-  supportedSizes: string[]
-  durationRange: [number, number]
+  capabilities: ImageCapabilities
+}
+
+export interface ImageGenerationRequest {
+  model: string
+  prompt: string
+  n?: number
+  size?: string
+}
+
+export interface ImageGenerationDataItem {
+  url?: string
+  b64_json?: string
+  revised_prompt?: string
+}
+
+export interface ImageGenerationResponse {
+  created: number
+  data: ImageGenerationDataItem[]
+  error?: { message: string; code?: string }
+}
+
+export interface ImageHistoryItem {
+  id: string
+  model: string
+  prompt: string
+  size?: string
+  n: number
+  createdAt: number
+  images: Array<{
+    id: string
+    url?: string
+    b64_json?: string
+    revised_prompt?: string
+  }>
+  profile?: ImageRequestProfile
 }

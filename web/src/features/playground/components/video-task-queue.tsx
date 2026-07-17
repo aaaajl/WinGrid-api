@@ -29,9 +29,17 @@ import {
   QueueSectionLabel,
   QueueSectionContent,
 } from '@/components/ai-elements/queue'
-import { VIDEO_MODEL_TYPE_LABELS } from '../constants'
 import { VideoTaskItem } from './video-task-item'
-import type { VideoTaskItem as VideoTaskItemType, VideoModelType } from '../types'
+import type {
+  VideoTaskItem as VideoTaskItemType,
+  VideoRequestProfile,
+} from '../types'
+
+const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
+  happyhorse: 'HappyHorse',
+  seedance: 'Seedance',
+  generic: 'Video',
+}
 
 interface VideoTaskQueueProps {
   tasks: VideoTaskItemType[]
@@ -47,23 +55,22 @@ export function VideoTaskQueue({
   onClearFinished,
 }: VideoTaskQueueProps) {
   const { t } = useTranslation()
-  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [profileFilter, setProfileFilter] = useState<string>('all')
 
-  // Collect unique types present in tasks for filter tabs
-  const availableTypes = useMemo(() => {
-    const types = new Set<VideoModelType>()
+  const availableProfiles = useMemo(() => {
+    const profiles = new Set<VideoRequestProfile>()
     for (const task of tasks) {
-      if (task.type) types.add(task.type)
+      if (task.profile) profiles.add(task.profile)
     }
-    return Array.from(types)
+    return Array.from(profiles)
   }, [tasks])
 
   const filteredTasks = useMemo(
     () =>
-      typeFilter === 'all'
+      profileFilter === 'all'
         ? tasks
-        : tasks.filter((t) => t.type === typeFilter),
-    [tasks, typeFilter]
+        : tasks.filter((task) => task.profile === profileFilter),
+    [tasks, profileFilter]
   )
 
   const activeTasks = filteredTasks.filter(
@@ -86,15 +93,15 @@ export function VideoTaskQueue({
   return (
     <div className='flex flex-col gap-2'>
       {/* Type filter tabs */}
-      {availableTypes.length > 1 && (
-        <Tabs value={typeFilter} onValueChange={setTypeFilter}>
+      {availableProfiles.length > 1 && (
+        <Tabs value={profileFilter} onValueChange={setProfileFilter}>
           <TabsList variant='line'>
             <TabsTrigger value='all'>
               {t('All')}
             </TabsTrigger>
-            {availableTypes.map((type) => (
-              <TabsTrigger key={type} value={type}>
-                {VIDEO_MODEL_TYPE_LABELS[type]}
+            {availableProfiles.map((profile) => (
+              <TabsTrigger key={profile} value={profile}>
+                {PROFILE_LABELS[profile]}
               </TabsTrigger>
             ))}
           </TabsList>

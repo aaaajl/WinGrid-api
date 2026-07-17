@@ -570,6 +570,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		return &requestBody, nil
 
 	default:
+		// Agnes Image rejects OpenAI-only fields such as n.
+		if strings.HasPrefix(strings.ToLower(request.Model), "agnes-image-") {
+			cleaned := request
+			cleaned.N = nil
+			return cleaned, nil
+		}
 		return request, nil
 	}
 }

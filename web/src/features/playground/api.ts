@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import { API_ENDPOINTS, VIDEO_API_ENDPOINTS } from './constants'
+import {
+  API_ENDPOINTS,
+  IMAGE_API_ENDPOINTS,
+  VIDEO_API_ENDPOINTS,
+} from './constants'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
@@ -27,7 +31,20 @@ import type {
   TokenOption,
   VideoGenerationRequest,
   VideoTaskResponse,
+  PlaygroundVideoModel,
+  PlaygroundImageModel,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
+  ImageRequestProfile,
 } from './types'
+
+const IMAGE_PROFILES = new Set<ImageRequestProfile>([
+  'dalle2',
+  'dalle3',
+  'gpt_image',
+  'agnes_image',
+  'generic',
+])
 
 /**
  * Send chat completion request (non-streaming)
@@ -60,6 +77,70 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
     label: model,
     value: model,
   }))
+}
+
+/**
+ * Get catalog-backed playground video models (t2v tag + profile).
+ */
+export async function getPlaygroundVideoModels(
+  group: string
+): Promise<PlaygroundVideoModel[]> {
+  const res = await api.get(API_ENDPOINTS.PLAYGROUND_VIDEO_MODELS, {
+    params: { group },
+  })
+  const { data } = res
+
+  if (!data.success || !Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data
+    .map((item: Partial<PlaygroundVideoModel>) => ({
+      model: item.model ?? '',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      profile: item.profile,
+      label: item.label || item.model || '',
+      capabilities: item.capabilities,
+    }))
+    .filter(
+      (item: PlaygroundVideoModel) =>
+        !!item.model &&
+        (item.profile === 'happyhorse' ||
+          item.profile === 'seedance' ||
+          item.profile === 'generic')
+    ) as PlaygroundVideoModel[]
+}
+
+/**
+ * Get catalog-backed playground image models (t2i tag + profile).
+ */
+export async function getPlaygroundImageModels(
+  group: string
+): Promise<PlaygroundImageModel[]> {
+  const res = await api.get(API_ENDPOINTS.PLAYGROUND_IMAGE_MODELS, {
+    params: { group },
+  })
+  const { data } = res
+
+  if (!data.success || !Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data
+    .map((item: Partial<PlaygroundImageModel>) => ({
+      model: item.model ?? '',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      profile: item.profile,
+      label: item.label || item.model || '',
+      capabilities: item.capabilities,
+    }))
+    .filter(
+      (item: PlaygroundImageModel) =>
+        !!item.model &&
+        !!item.capabilities &&
+        Array.isArray(item.capabilities.supported_sizes) &&
+        IMAGE_PROFILES.has(item.profile)
+    ) as PlaygroundImageModel[]
 }
 
 /**
@@ -144,4 +225,39 @@ export async function fetchVideoTaskStatus(
     },
   } as Record<string, unknown>)
   return res.data
+}
+
+/**
+ * Submit an OpenAI-compatible image generation request
+ */
+export async function submitImageGeneration(
+  payload: ImageGenerationRequest,
+  apiKey: string
+): Promise<ImageGenerationResponse> {
+  try {
+    const res = await api.post(IMAGE_API_ENDPOINTS.GENERATIONS, payload, {
+      skipErrorHandler: true,
+      skipBusinessError: true,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    } as Record<string, unknown>)
+    return res.data
+  } catch (err) {
+    const axiosErr = err as {
+      response?: { data?: ImageGenerationResponse & { message?: string; error?: { message?: string } } }
+      message?: string
+    }
+    const data = axiosErr.response?.data
+    const message =
+      data?.error?.message ||
+      data?.message ||
+      axiosErr.message ||
+      'Request failed'
+    return {
+      created: 0,
+      data: [],
+      error: { message },
+    }
+  }
 }

@@ -37,6 +37,8 @@ export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
+  PLAYGROUND_VIDEO_MODELS: '/api/user/playground/video-models',
+  PLAYGROUND_IMAGE_MODELS: '/api/user/playground/image-models',
 } as const
 
 // Default group — uses 'default' as the safe fallback; auto-group is
@@ -105,55 +107,15 @@ export const VIDEO_TASK_STATUS = {
   FAILED: 'failed',
 } as const
 
-export const HAPPYHORSE_MODEL_PREFIX = 'happyhorse-'
-
-import type { VideoModelConfig, VideoModelType } from './types'
-
-export const HAPPYHORSE_MODELS: VideoModelConfig[] = [
-  {
-    model: 'happyhorse-1.0-t2v',
-    label: 'Text-to-Video',
-    type: 'text-to-video',
-    requiresImage: false,
-    requiresVideo: false,
-    supportedSizes: ['720P', '1080P'],
-    durationRange: [2, 15],
-  },
-  {
-    model: 'happyhorse-1.0-i2v',
-    label: 'Image-to-Video',
-    type: 'image-to-video',
-    requiresImage: true,
-    requiresVideo: false,
-    supportedSizes: ['720P', '1080P'],
-    durationRange: [2, 15],
-  },
-  {
-    model: 'happyhorse-1.0-r2v',
-    label: 'Reference-to-Video',
-    type: 'reference-to-video',
-    requiresImage: true,
-    requiresVideo: false,
-    supportedSizes: ['720P', '1080P'],
-    durationRange: [2, 15],
-  },
-  {
-    model: 'happyhorse-1.0-video-edit',
-    label: 'Video Edit',
-    type: 'video-edit',
-    requiresImage: false,
-    requiresVideo: true,
-    supportedSizes: ['720P', '1080P'],
-    durationRange: [2, 15],
-  },
-]
-
-export const VIDEO_MODEL_TYPE_LABELS: Record<VideoModelType, string> = {
-  'text-to-video': 'T2V',
-  'image-to-video': 'I2V',
-  'reference-to-video': 'R2V',
-  'video-edit': 'Edit',
-}
+export const MODEL_TAGS = {
+  T2T: 't2t',
+  T2I: 't2i',
+  T2V: 't2v',
+  I2V: 'i2v',
+  R2V: 'r2v',
+  V2V: 'v2v',
+  S2V: 's2v',
+} as const
 
 export const VIDEO_POLLING_INTERVAL = 5000
 
@@ -161,6 +123,19 @@ export const STORAGE_KEYS_VIDEO = {
   TASK_QUEUE: 'playground_video_tasks',
   TOKEN_ID: 'playground_video_token_id',
 } as const
+
+// ========== Image generation constants ==========
+
+export const IMAGE_API_ENDPOINTS = {
+  GENERATIONS: '/v1/images/generations',
+} as const
+
+export const STORAGE_KEYS_IMAGE = {
+  HISTORY: 'playground_image_history',
+  TOKEN_ID: 'playground_image_token_id',
+} as const
+
+export const IMAGE_HISTORY_MAX = 20
 
 // Message action labels
 export const MESSAGE_ACTION_LABELS = {

@@ -82,7 +82,7 @@ import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 
 import { createModel, updateModel, getModel, getVendors } from '../../api'
-import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
+import { getNameRuleOptions, ENDPOINT_TEMPLATES, RESERVED_MODEL_TAGS } from '../../constants'
 import { modelsQueryKeys, vendorsQueryKeys, parseModelTags } from '../../lib'
 import type { Model } from '../../types'
 
@@ -871,6 +871,25 @@ export function ModelMutateDrawer({
                     <FormDescription>
                       {t('Press Enter or comma to add tags')}
                     </FormDescription>
+                    <div className='flex flex-wrap gap-1.5 pt-1'>
+                      {RESERVED_MODEL_TAGS.map((tag) => (
+                        <Button
+                          key={tag}
+                          type='button'
+                          size='sm'
+                          variant='outline'
+                          className='h-7 px-2 text-xs'
+                          disabled={field.value?.includes(tag)}
+                          onClick={() => {
+                            const current = field.value ?? []
+                            if (current.includes(tag)) return
+                            field.onChange([...current, tag])
+                          }}
+                        >
+                          {tag}
+                        </Button>
+                      ))}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

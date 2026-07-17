@@ -19,22 +19,29 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { PlaygroundChat } from './components/chat/playground-chat'
+import { PlaygroundInput } from './components/input/playground-input'
+import { ImageInputForm } from './components/image-input-form'
+import {
+  ImageHistoryList,
+  ImageResultPreview,
+} from './components/image-history-list'
 import { VideoInputForm } from './components/video-input-form'
 import { VideoPlayer } from './components/video-player'
 import { VideoTaskQueue } from './components/video-task-queue'
-import { PlaygroundChat } from './components/chat/playground-chat'
-import { PlaygroundInput } from './components/input/playground-input'
-import { HAPPYHORSE_MODEL_PREFIX } from './constants'
 import {
   useChatHandler,
+  useImageGeneration,
   usePlaygroundConversation,
+  usePlaygroundImageModels,
   usePlaygroundOptions,
   usePlaygroundState,
+  usePlaygroundVideoModels,
   useVideoTask,
 } from './hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { VideoModelType, VideoTaskItem } from './types'
+import type { VideoTaskItem, VideoRequestProfile } from './types'
 
 export function Playground() {
   const { t } = useTranslation()
@@ -73,18 +80,23 @@ export function Playground() {
     sendChat,
   })
 
-  const {
-    tasks,
-    isSubmitting,
-    submitError,
-    submitTask,
-    clearFinishedTasks,
-    removeTask,
-  } = useVideoTask()
-
+  const { tasks, isSubmitting, submitError, submitTask, clearFinishedTasks, removeTask } =
+    useVideoTask()
   const [previewTask, setPreviewTask] = useState<VideoTaskItem | null>(null)
-  // Skip auto-preview for tasks already completed when this session loaded
   const autoPreviewedRef = useRef<Set<string> | null>(null)
+
+  const {
+    history: imageHistory,
+    previewItem: imagePreview,
+    setPreviewItem: setImagePreview,
+    isSubmitting: isImageSubmitting,
+    submitError: imageSubmitError,
+    generate: generateImage,
+    removeHistoryItem,
+    clearHistory,
+  } = useImageGeneration()
+  const [reusePrompt, setReusePrompt] = useState<string | null>(null)
+  const [reusePromptNonce, setReusePromptNonce] = useState(0)
 
   useEffect(() => {
     if (autoPreviewedRef.current === null) {
@@ -137,21 +149,38 @@ export function Playground() {
     updateConfig,
   })
 
-  const hasVideoModels = models.some((m) =>
-    m.value.startsWith(HAPPYHORSE_MODEL_PREFIX)
-  )
+  const { videoModels } = usePlaygroundVideoModels(config.group)
+  const { imageModels } = usePlaygroundImageModels(config.group)
+  const hasVideoModels = videoModels.length > 0
+  const hasImageModels = imageModels.length > 0
+  const hasExtraTabs = hasVideoModels || hasImageModels
 
   const handleVideoSubmit = async (
     req: Parameters<typeof submitTask>[0],
     apiKey: string,
     tokenId: number,
-    meta?: { size?: string; duration?: number; type?: VideoModelType }
+    meta?: { size?: string; duration?: number; profile?: VideoRequestProfile }
   ) => {
     try {
       await submitTask(req, apiKey, tokenId, meta)
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : t('Failed to submit video task')
+      )
+    }
+  }
+
+  const handleImageSubmit = async (
+    req: Parameters<typeof generateImage>[0],
+    apiKey: string,
+    meta?: Parameters<typeof generateImage>[2]
+  ) => {
+    try {
+      await generateImage(req, apiKey, meta)
+      setReusePrompt(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t('Failed to generate image')
       )
     }
   }
@@ -198,7 +227,7 @@ export function Playground() {
     </>
   )
 
-  if (!hasVideoModels) {
+  if (!hasExtraTabs) {
     return (
       <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
         {chatPanel}
@@ -215,7 +244,12 @@ export function Playground() {
         <div className='flex shrink-0 justify-center border-b px-4 pt-2'>
           <TabsList>
             <TabsTrigger value='chat'>{t('Chat')}</TabsTrigger>
-            <TabsTrigger value='video'>{t('Video')}</TabsTrigger>
+            {hasImageModels && (
+              <TabsTrigger value='image'>{t('Image')}</TabsTrigger>
+            )}
+            {hasVideoModels && (
+              <TabsTrigger value='video'>{t('Video')}</TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -226,69 +260,124 @@ export function Playground() {
           {chatPanel}
         </TabsContent>
 
-        <TabsContent
-          className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
-          value='video'
-        >
-          <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
-            <VideoInputForm
-              models={models}
-              isSubmitting={isSubmitting}
-              onSubmit={handleVideoSubmit}
-            />
-          </div>
-          <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
-            {previewTask ? (
-              <VideoPlayer
-                task={previewTask}
-                onClose={() => setPreviewTask(null)}
+        {hasImageModels && (
+          <TabsContent
+            className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
+            value='image'
+          >
+            <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
+              <ImageInputForm
+                imageModels={imageModels}
+                isSubmitting={isImageSubmitting}
+                onReusePrompt={reusePrompt}
+                reusePromptNonce={reusePromptNonce}
+                onSubmit={handleImageSubmit}
               />
-            ) : null}
-            {!previewTask &&
-            tasks.some(
-              (task) =>
-                task.status === 'queued' || task.status === 'in_progress'
-            ) ? (
-              <div className='border-border bg-background rounded-xl border shadow-sm'>
-                <div className='flex items-center justify-between border-b px-4 py-2'>
-                  <div className='flex flex-1 flex-col gap-1.5'>
-                    <Skeleton className='h-3 w-24' />
-                    <Skeleton className='h-4 w-48' />
+            </div>
+            <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
+              {imagePreview && (
+                <ImageResultPreview
+                  item={imagePreview}
+                  onClose={() => setImagePreview(null)}
+                />
+              )}
+              {isImageSubmitting && !imagePreview && (
+                <div className='border-border bg-background rounded-xl border shadow-sm'>
+                  <div className='flex items-center justify-between border-b px-4 py-2'>
+                    <div className='flex flex-1 flex-col gap-1.5'>
+                      <Skeleton className='h-3 w-24' />
+                      <Skeleton className='h-4 w-48' />
+                    </div>
+                  </div>
+                  <div className='grid gap-3 p-3 sm:grid-cols-2'>
+                    <Skeleton className='aspect-square w-full rounded-lg' />
                   </div>
                 </div>
-                <div className='p-3'>
-                  <Skeleton className='aspect-video w-full rounded-lg' />
+              )}
+              {imageSubmitError && (
+                <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
+                  {imageSubmitError}
                 </div>
-                <div className='border-t px-4 py-2'>
-                  <Skeleton className='h-3 w-3/4' />
+              )}
+              <ImageHistoryList
+                items={imageHistory}
+                onClear={clearHistory}
+                onPreview={setImagePreview}
+                onRemove={removeHistoryItem}
+                onReusePrompt={(prompt) => {
+                  setReusePrompt(prompt)
+                  setReusePromptNonce((n) => n + 1)
+                }}
+              />
+            </div>
+          </TabsContent>
+        )}
+
+        {hasVideoModels && (
+          <TabsContent
+            className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
+            value='video'
+          >
+            <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
+              <VideoInputForm
+                videoModels={videoModels}
+                isSubmitting={isSubmitting}
+                onSubmit={handleVideoSubmit}
+              />
+            </div>
+            <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
+              {previewTask && (
+                <VideoPlayer
+                  task={previewTask}
+                  onClose={() => setPreviewTask(null)}
+                />
+              )}
+              {!previewTask &&
+                tasks.some(
+                  (task) =>
+                    task.status === 'queued' || task.status === 'in_progress'
+                ) && (
+                  <div className='border-border bg-background rounded-xl border shadow-sm'>
+                    <div className='flex items-center justify-between border-b px-4 py-2'>
+                      <div className='flex flex-1 flex-col gap-1.5'>
+                        <Skeleton className='h-3 w-24' />
+                        <Skeleton className='h-4 w-48' />
+                      </div>
+                    </div>
+                    <div className='p-3'>
+                      <Skeleton className='aspect-video w-full rounded-lg' />
+                    </div>
+                    <div className='border-t px-4 py-2'>
+                      <Skeleton className='h-3 w-3/4' />
+                    </div>
+                  </div>
+                )}
+              {submitError && (
+                <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
+                  {submitError}
                 </div>
-              </div>
-            ) : null}
-            {submitError ? (
-              <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
-                {submitError}
-              </div>
-            ) : null}
-            <VideoTaskQueue
-              tasks={tasks}
-              onPreview={setPreviewTask}
-              onRemove={(id) => {
-                if (previewTask?.id === id) setPreviewTask(null)
-                removeTask(id)
-              }}
-              onClearFinished={() => {
-                if (
-                  previewTask &&
-                  (previewTask.status === 'completed' ||
-                    previewTask.status === 'failed')
-                ) {
-                  setPreviewTask(null)
-                }
-                clearFinishedTasks()
-              }}
-            />
-          </div>
-        </TabsContent>
+              )}
+              <VideoTaskQueue
+                tasks={tasks}
+                onPreview={setPreviewTask}
+                onRemove={(id) => {
+                  if (previewTask?.id === id) setPreviewTask(null)
+                  removeTask(id)
+                }}
+                onClearFinished={() => {
+                  if (
+                    previewTask &&
+                    (previewTask.status === 'completed' ||
+                      previewTask.status === 'failed')
+                  ) {
+                    setPreviewTask(null)
+                  }
+                  clearFinishedTasks()
+                }}
+              />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   )
