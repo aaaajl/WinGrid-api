@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export PATH=/usr/pgsql-15/bin:$PATH
 # new-api 数据库每日备份脚本
 # 备份目录: /home/data/backup
 # 保留天数: 15
@@ -7,8 +8,8 @@
 #   1. 复制 scripts/backup-db.env.example 为 /etc/new-api/backup-db.env（或同目录 backup-db.env）
 #   2. 填写数据库连接信息
 #   3. chmod +x scripts/backup-db.sh
-#   4. 加入 crontab，例如每天凌晨 2:00:
-#      0 2 * * * /path/to/new-api/scripts/backup-db.sh >> /home/data/backup/backup.log 2>&1
+#   4. 加入 crontab -e，例如每天凌晨 2:00:
+#      0 2 * * * /home/apps/WinGrid-api/scripts/backup-db.sh >> /home/data/backup/backup.log 2>&1 >> /home/data/backup/backup.log 2>&1
 
 set -euo pipefail
 
