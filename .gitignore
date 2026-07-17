@@ -11,6 +11,7 @@ logs
 web/dist
 web/node_modules
 .env
+scripts/backup-db.env
 one-api
 new-api
 /__debug_bin*
