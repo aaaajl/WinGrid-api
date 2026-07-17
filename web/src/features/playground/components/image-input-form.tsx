@@ -174,9 +174,6 @@ export function ImageInputForm(props: ImageInputFormProps) {
       selectedModel.profile
     )
     await props.onSubmit(req, realKey, { profile: selectedModel.profile })
-    setFormState((current) =>
-      current ? { ...current, prompt: '' } : current
-    )
   }
 
   if (props.imageModels.length === 0) {

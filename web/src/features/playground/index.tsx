@@ -152,8 +152,6 @@ export function Playground() {
   const { videoModels } = usePlaygroundVideoModels(config.group)
   const { imageModels } = usePlaygroundImageModels(config.group)
   const hasVideoModels = videoModels.length > 0
-  const hasImageModels = imageModels.length > 0
-  const hasExtraTabs = hasVideoModels || hasImageModels
 
   const handleVideoSubmit = async (
     req: Parameters<typeof submitTask>[0],
@@ -227,26 +225,16 @@ export function Playground() {
     </>
   )
 
-  if (!hasExtraTabs) {
-    return (
-      <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
-        {chatPanel}
-      </div>
-    )
-  }
-
   return (
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
       <Tabs
         className='flex size-full min-h-0 flex-col overflow-hidden'
-        defaultValue='chat'
+        defaultValue='image'
       >
         <div className='flex shrink-0 justify-center border-b px-4 pt-2'>
           <TabsList>
             <TabsTrigger value='chat'>{t('Chat')}</TabsTrigger>
-            {hasImageModels && (
-              <TabsTrigger value='image'>{t('Image')}</TabsTrigger>
-            )}
+            <TabsTrigger value='image'>{t('Image')}</TabsTrigger>
             {hasVideoModels && (
               <TabsTrigger value='video'>{t('Video')}</TabsTrigger>
             )}
@@ -260,58 +248,56 @@ export function Playground() {
           {chatPanel}
         </TabsContent>
 
-        {hasImageModels && (
-          <TabsContent
-            className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
-            value='image'
-          >
-            <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
-              <ImageInputForm
-                imageModels={imageModels}
-                isSubmitting={isImageSubmitting}
-                onReusePrompt={reusePrompt}
-                reusePromptNonce={reusePromptNonce}
-                onSubmit={handleImageSubmit}
+        <TabsContent
+          className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
+          value='image'
+        >
+          <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
+            <ImageInputForm
+              imageModels={imageModels}
+              isSubmitting={isImageSubmitting}
+              onReusePrompt={reusePrompt}
+              reusePromptNonce={reusePromptNonce}
+              onSubmit={handleImageSubmit}
+            />
+          </div>
+          <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
+            {imagePreview && (
+              <ImageResultPreview
+                item={imagePreview}
+                onClose={() => setImagePreview(null)}
               />
-            </div>
-            <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
-              {imagePreview && (
-                <ImageResultPreview
-                  item={imagePreview}
-                  onClose={() => setImagePreview(null)}
-                />
-              )}
-              {isImageSubmitting && !imagePreview && (
-                <div className='border-border bg-background rounded-xl border shadow-sm'>
-                  <div className='flex items-center justify-between border-b px-4 py-2'>
-                    <div className='flex flex-1 flex-col gap-1.5'>
-                      <Skeleton className='h-3 w-24' />
-                      <Skeleton className='h-4 w-48' />
-                    </div>
-                  </div>
-                  <div className='grid gap-3 p-3 sm:grid-cols-2'>
-                    <Skeleton className='aspect-square w-full rounded-lg' />
+            )}
+            {isImageSubmitting && !imagePreview && (
+              <div className='border-border bg-background rounded-xl border shadow-sm'>
+                <div className='flex items-center justify-between border-b px-4 py-2'>
+                  <div className='flex flex-1 flex-col gap-1.5'>
+                    <Skeleton className='h-3 w-24' />
+                    <Skeleton className='h-4 w-48' />
                   </div>
                 </div>
-              )}
-              {imageSubmitError && (
-                <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
-                  {imageSubmitError}
+                <div className='grid gap-3 p-3 sm:grid-cols-2'>
+                  <Skeleton className='aspect-square w-full rounded-lg' />
                 </div>
-              )}
-              <ImageHistoryList
-                items={imageHistory}
-                onClear={clearHistory}
-                onPreview={setImagePreview}
-                onRemove={removeHistoryItem}
-                onReusePrompt={(prompt) => {
-                  setReusePrompt(prompt)
-                  setReusePromptNonce((n) => n + 1)
-                }}
-              />
-            </div>
-          </TabsContent>
-        )}
+              </div>
+            )}
+            {imageSubmitError && (
+              <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
+                {imageSubmitError}
+              </div>
+            )}
+            <ImageHistoryList
+              items={imageHistory}
+              onClear={clearHistory}
+              onPreview={setImagePreview}
+              onRemove={removeHistoryItem}
+              onReusePrompt={(prompt) => {
+                setReusePrompt(prompt)
+                setReusePromptNonce((n) => n + 1)
+              }}
+            />
+          </div>
+        </TabsContent>
 
         {hasVideoModels && (
           <TabsContent
