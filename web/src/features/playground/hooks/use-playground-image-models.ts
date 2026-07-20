@@ -23,14 +23,15 @@ import { toast } from 'sonner'
 
 import { getPlaygroundImageModels } from '../api'
 import { getOptionLoadErrorMessage } from '../lib'
+import { useAuthStore } from '@/stores/auth-store'
 
-export function usePlaygroundImageModels(group: string) {
+export function usePlaygroundImageModels() {
   const { t } = useTranslation()
+  const userGroup = useAuthStore((s) => s.auth.user?.group ?? '')
 
   const { data, error, isError, isLoading } = useQuery({
-    queryKey: ['playground-image-models', group],
-    queryFn: () => getPlaygroundImageModels(group),
-    enabled: group !== '',
+    queryKey: ['playground-image-models', userGroup],
+    queryFn: () => getPlaygroundImageModels(),
   })
 
   useEffect(() => {

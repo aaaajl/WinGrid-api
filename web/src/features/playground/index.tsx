@@ -149,8 +149,8 @@ export function Playground() {
     updateConfig,
   })
 
-  const { videoModels } = usePlaygroundVideoModels(config.group)
-  const { imageModels } = usePlaygroundImageModels(config.group)
+  const { videoModels } = usePlaygroundVideoModels()
+  const { imageModels } = usePlaygroundImageModels()
   const hasVideoModels = videoModels.length > 0
 
   const handleVideoSubmit = async (

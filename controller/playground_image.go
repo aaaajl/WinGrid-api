@@ -16,21 +16,7 @@ func GetUserPlaygroundImageModels(c *gin.Context) {
 		return
 	}
 
-	groups := service.GetUserUsableGroups(user.Group)
-	group := c.Query("group")
-	if group == "" {
-		group = user.Group
-	}
-	if _, ok := groups[group]; !ok {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "",
-			"data":    []any{},
-		})
-		return
-	}
-
-	models, err := service.ListPlaygroundImageModels(group)
+	models, err := service.ListPlaygroundImageModels(user.Group)
 	if err != nil {
 		common.ApiError(c, err)
 		return

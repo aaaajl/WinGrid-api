@@ -81,13 +81,12 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
 
 /**
  * Get catalog-backed playground video models (t2v tag + profile).
+ * Filtered by the authenticated user's group on the server.
  */
-export async function getPlaygroundVideoModels(
-  group: string
-): Promise<PlaygroundVideoModel[]> {
-  const res = await api.get(API_ENDPOINTS.PLAYGROUND_VIDEO_MODELS, {
-    params: { group },
-  })
+export async function getPlaygroundVideoModels(): Promise<
+  PlaygroundVideoModel[]
+> {
+  const res = await api.get(API_ENDPOINTS.PLAYGROUND_VIDEO_MODELS)
   const { data } = res
 
   if (!data.success || !Array.isArray(data.data)) {
@@ -113,13 +112,12 @@ export async function getPlaygroundVideoModels(
 
 /**
  * Get catalog-backed playground image models (t2i tag + profile).
+ * Filtered by the authenticated user's group on the server.
  */
-export async function getPlaygroundImageModels(
-  group: string
-): Promise<PlaygroundImageModel[]> {
-  const res = await api.get(API_ENDPOINTS.PLAYGROUND_IMAGE_MODELS, {
-    params: { group },
-  })
+export async function getPlaygroundImageModels(): Promise<
+  PlaygroundImageModel[]
+> {
+  const res = await api.get(API_ENDPOINTS.PLAYGROUND_IMAGE_MODELS)
   const { data } = res
 
   if (!data.success || !Array.isArray(data.data)) {

@@ -23,9 +23,11 @@ import { toast } from 'sonner'
 
 import { getPlaygroundVideoModels } from '../api'
 import { getOptionLoadErrorMessage } from '../lib'
+import { useAuthStore } from '@/stores/auth-store'
 
-export function usePlaygroundVideoModels(group: string) {
+export function usePlaygroundVideoModels() {
   const { t } = useTranslation()
+  const userGroup = useAuthStore((s) => s.auth.user?.group ?? '')
 
   const {
     data,
@@ -33,9 +35,8 @@ export function usePlaygroundVideoModels(group: string) {
     isError,
     isLoading,
   } = useQuery({
-    queryKey: ['playground-video-models', group],
-    queryFn: () => getPlaygroundVideoModels(group),
-    enabled: group !== '',
+    queryKey: ['playground-video-models', userGroup],
+    queryFn: () => getPlaygroundVideoModels(),
   })
 
   useEffect(() => {
