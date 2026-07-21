@@ -97,6 +97,7 @@ export function Playground() {
   } = useImageGeneration()
   const [reusePrompt, setReusePrompt] = useState<string | null>(null)
   const [reusePromptNonce, setReusePromptNonce] = useState(0)
+  const [videoPrompt, setVideoPrompt] = useState('')
 
   useEffect(() => {
     if (autoPreviewedRef.current === null) {
@@ -307,6 +308,8 @@ export function Playground() {
             <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
               <VideoInputForm
                 videoModels={videoModels}
+                prompt={videoPrompt}
+                onPromptChange={setVideoPrompt}
                 isSubmitting={isSubmitting}
                 onSubmit={handleVideoSubmit}
               />

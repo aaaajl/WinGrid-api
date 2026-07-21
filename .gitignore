@@ -11,6 +11,8 @@ logs
 web/dist
 web/node_modules
 .env
+deploy/master-slave/.master-runtime-mode
+deploy/master-slave/.slave-runtime-mode
 one-api
 new-api
 /__debug_bin*

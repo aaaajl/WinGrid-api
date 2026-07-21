@@ -60,6 +60,8 @@ const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
 
 interface VideoInputFormProps {
   videoModels: PlaygroundVideoModel[]
+  prompt: string
+  onPromptChange: (prompt: string) => void
   onSubmit: (
     req: VideoGenerationRequest,
     apiKey: string,
@@ -73,17 +75,15 @@ interface VideoInputFormProps {
   isSubmitting?: boolean
 }
 
-export function VideoInputForm({
-  videoModels,
-  onSubmit,
-  isSubmitting = false,
-}: VideoInputFormProps) {
+export function VideoInputForm(props: VideoInputFormProps) {
   const { t } = useTranslation()
+  const videoModels = props.videoModels
+  const prompt = props.prompt
+  const isSubmitting = props.isSubmitting ?? false
 
   const [selectedModelName, setSelectedModelName] = useState(
     videoModels[0]?.model ?? ''
   )
-  const [prompt, setPrompt] = useState('')
   const [happyHorseState, setHappyHorseState] = useState<HappyHorseFormState | null>(
     null
   )
@@ -196,8 +196,7 @@ export function VideoInputForm({
         : {}),
     }
 
-    await onSubmit(req, realKey, selectedToken.id, meta)
-    setPrompt('')
+    await props.onSubmit(req, realKey, selectedToken.id, meta)
   }
 
   if (videoModels.length === 0) {
@@ -290,7 +289,7 @@ export function VideoInputForm({
           className='min-h-[100px] resize-none'
           placeholder={t('Describe the video you want to generate...')}
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => props.onPromptChange(e.target.value)}
         />
       </div>
 

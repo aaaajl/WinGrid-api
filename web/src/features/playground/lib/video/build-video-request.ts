@@ -176,7 +176,8 @@ export function getDefaultSeedanceFormState(
     prompt: '',
     resolution: caps.supported_resolutions[0] ?? '720p',
     ratio: caps.supported_ratios[0] ?? '16:9',
-    duration: caps.duration_range[0] ?? 5,
+    // Prefer a mid-range default; Seedance 1.5+ rejects very short clips.
+    duration: Math.max(caps.duration_range[0] ?? 5, 5),
     watermark: false,
     cameraFixed: false,
     generateAudio: false,

@@ -1,0 +1,61 @@
+# 主节点 docker-compose
+# 推荐用法（在本目录）：
+#   cp .env.example .env && ./build.sh && ./start-master.sh
+#
+# 主从靠启动命令区分：NODE_TYPE=master
+
+services:
+  new-api:
+    image: ${IMAGE:-wingrid-api:local}
+    container_name: new-api-master
+    restart: always
+    # 覆盖镜像 ENTRYPOINT，用启动命令注入角色
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - exec env NODE_TYPE=master NODE_NAME=${NODE_NAME:-new-api-master} /new-api --log-dir /app/logs
+    ports:
+      - "${HOST_PORT:-3888}:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - SYNC_FREQUENCY=60
+      - SQL_DSN=${SQL_DSN}
+      - REDIS_CONN_STRING=${REDIS_CONN_STRING}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - CRYPTO_SECRET=${CRYPTO_SECRET}
+      # 主节点不要设置 FRONTEND_BASE_URL
+    depends_on:
+      - redis
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 主节点同机 Redis；从节点通过 REDIS_CONN_STRING 连到此处（需对外暴露或内网可达）
+  redis:
+    image: redis:latest
+    container_name: new-api-redis
+    restart: always
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    ports:
+      - "6379:6379"   # 仅内网可达时再暴露；生产建议加防火墙
+    networks:
+      - new-api-network
+    volumes:
+      - redis_data:/data
+
+networks:
+  new-api-network:
+    driver: bridge
+
+volumes:
+  redis_data:

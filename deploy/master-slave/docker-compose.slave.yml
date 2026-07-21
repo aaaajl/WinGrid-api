@@ -1,0 +1,48 @@
+# 从节点 docker-compose（不含 Redis，必须公用主节点 new-api-redis）
+# 推荐用法（在本目录，每台从机一份）：
+#   cp .env.example .env
+#   # SESSION_SECRET / CRYPTO_SECRET / SQL_DSN 必须与主节点一致
+#   # MASTER_HOST=主节点IP（start-slave.sh 会拼出 redis://:密码@MASTER_HOST:6379）
+#   ./build.sh && ./start-slave.sh local new-api-slave-1
+#
+# 主从靠启动命令区分：NODE_TYPE=slave
+
+services:
+  new-api:
+    image: ${IMAGE:-wingrid-api:local}
+    container_name: new-api-slave
+    restart: always
+    # 覆盖镜像 ENTRYPOINT，用启动命令注入角色
+    entrypoint: ["/bin/sh", "-c"]
+    # NODE_NAME 由 start-slave.sh 或 .env 注入，每台从机唯一
+    command:
+      - exec env NODE_TYPE=slave NODE_NAME=${NODE_NAME:-new-api-slave-1} /new-api --log-dir /app/logs
+    ports:
+      - "${HOST_PORT:-3888}:3000"
+    volumes:
+      - ./data:/data
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - ERROR_LOG_ENABLED=true
+      - BATCH_UPDATE_ENABLED=true
+      - SYNC_FREQUENCY=60
+      - SQL_DSN=${SQL_DSN}
+      - REDIS_CONN_STRING=${REDIS_CONN_STRING}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - CRYPTO_SECRET=${CRYPTO_SECRET}
+      # 可选：从节点不提供前端时重定向到统一入口
+      # - FRONTEND_BASE_URL=https://api.wingrid.tech
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  new-api-network:
+    driver: bridge

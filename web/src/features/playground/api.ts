@@ -198,14 +198,35 @@ export async function submitVideoGeneration(
   payload: VideoGenerationRequest,
   apiKey: string
 ): Promise<VideoTaskResponse> {
-  const res = await api.post(VIDEO_API_ENDPOINTS.SUBMIT, payload, {
-    skipErrorHandler: true,
-    skipBusinessError: true,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  } as Record<string, unknown>)
-  return res.data
+  try {
+    const res = await api.post(VIDEO_API_ENDPOINTS.SUBMIT, payload, {
+      skipErrorHandler: true,
+      skipBusinessError: true,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    } as Record<string, unknown>)
+    return res.data
+  } catch (err) {
+    const axiosErr = err as {
+      response?: {
+        data?: {
+          message?: string
+          Message?: string
+          error?: { message?: string }
+        }
+      }
+      message?: string
+    }
+    const data = axiosErr.response?.data
+    const message =
+      data?.error?.message ||
+      data?.message ||
+      data?.Message ||
+      axiosErr.message ||
+      'Request failed'
+    throw new Error(message)
+  }
 }
 
 /**
