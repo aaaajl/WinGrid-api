@@ -271,6 +271,20 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+
+		fissionRoute := apiRouter.Group("/fission")
+		fissionRoute.Use(middleware.AdminAuth())
+		{
+			fissionRoute.GET("/meta", controller.GetFissionMeta)
+			fissionRoute.GET("/report", controller.GetFissionReport)
+			fissionRoute.GET("/report/items", controller.GetFissionReportItems)
+			fissionRoute.GET("/report/export", controller.ExportFissionReport)
+			fissionRoute.POST("/payout/mark_paid", controller.MarkFissionPaid)
+			fissionRoute.POST("/payout/hold", controller.HoldFissionPayout)
+			fissionRoute.POST("/refresh", controller.RefreshFissionReport)
+			fissionRoute.GET("/refresh/:task_id", controller.GetFissionRefreshTask)
+		}
+
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)

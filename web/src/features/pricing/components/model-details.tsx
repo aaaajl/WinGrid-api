@@ -67,8 +67,18 @@ import {
   isDynamicPricingModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
-import { formatFixedPrice, formatGroupPrice } from '../lib/price'
+import {
+  getAvailableGroups,
+  isPerDurationModel,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
+import {
+  formatDurationUnitPrice,
+  formatFixedPrice,
+  formatGroupPrice,
+  getDurationPriceEntries,
+  getDurationStartingPriceUSD,
+} from '../lib/price'
 import type {
   ModelCapability,
   PriceType,
@@ -575,6 +585,7 @@ function PriceSection(props: {
 }) {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
+  const isPerDuration = isPerDurationModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
@@ -585,6 +596,10 @@ function PriceSection(props: {
     usdExchangeRate: props.usdExchangeRate,
     groupRatioMultiplier: 1,
   })
+  const durationEntries = isPerDuration
+    ? getDurationPriceEntries(props.model)
+    : []
+  const durationFallback = Number(props.model.duration_pricing?.fallback_price)
 
   const primaryPriceTypes: { label: string; type: PriceType }[] = [
     { label: t('Input'), type: 'input' },
@@ -696,6 +711,61 @@ function PriceSection(props: {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  if (isPerDuration) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        {durationEntries.length > 0 ? (
+          <div className='grid grid-cols-2 gap-2'>
+            {durationEntries.map((entry) => (
+              <div
+                key={entry.size}
+                className='bg-muted/20 rounded-lg border p-3'
+              >
+                <div className='text-muted-foreground text-xs'>{entry.size}</div>
+                <div className='text-foreground mt-1 font-mono text-base font-semibold tabular-nums'>
+                  {formatDurationUnitPrice(
+                    entry.priceUSD,
+                    1,
+                    props.showRechargePrice,
+                    props.priceRate,
+                    props.usdExchangeRate
+                  )}
+                  <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                    / {t('sec')}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className='text-muted-foreground text-sm'>
+            {t('No size prices configured.')}
+          </p>
+        )}
+        {Number.isFinite(durationFallback) && durationFallback > 0 && (
+          <div className='bg-muted/20 mt-3 flex items-baseline justify-between rounded-lg border px-3 py-2.5'>
+            <span className='text-muted-foreground/70 text-sm'>
+              {t('Fallback')}
+            </span>
+            <span className='text-muted-foreground font-mono text-sm tabular-nums'>
+              {formatDurationUnitPrice(
+                durationFallback,
+                1,
+                props.showRechargePrice,
+                props.priceRate,
+                props.usdExchangeRate
+              )}
+              <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                / {t('sec')}
+              </span>
+            </span>
           </div>
         )}
       </section>
@@ -868,7 +938,11 @@ function GroupPricingSection(props: {
   )
 
   const isTokenBased = isTokenBasedModel(props.model)
+  const isPerDuration = isPerDurationModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
+  const durationStartingPrice = isPerDuration
+    ? getDurationStartingPriceUSD(props.model)
+    : null
 
   const extraPriceTypes = useMemo(() => {
     const types: { label: string; type: PriceType }[] = []
@@ -1041,6 +1115,16 @@ function GroupPricingSection(props: {
       props.usdExchangeRate,
       props.groupRatio
     )
+  const renderDurationGroupPrice = (group: string) => {
+    if (durationStartingPrice == null) return '-'
+    return formatDurationUnitPrice(
+      durationStartingPrice,
+      props.groupRatio[group] || 1,
+      showRechargePrice,
+      props.priceRate,
+      props.usdExchangeRate
+    )
+  }
 
   return (
     <section>
@@ -1094,10 +1178,13 @@ function GroupPricingSection(props: {
             : [
                 {
                   id: 'price',
-                  header: t('Price'),
+                  header: isPerDuration ? t('From') : t('Price'),
                   className: `${thClass} text-right`,
                   cellClassName: 'py-2.5 text-right font-mono',
-                  cell: renderFixedGroupPrice,
+                  cell: (group: string) =>
+                    isPerDuration
+                      ? `${renderDurationGroupPrice(group)} / ${t('sec')}`
+                      : renderFixedGroupPrice(group),
                 },
               ]),
         ]}
@@ -1106,6 +1193,11 @@ function GroupPricingSection(props: {
         {isTokenBased && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
             {t('Prices shown per')} {tokenUnitLabel} tokens
+          </p>
+        )}
+        {isPerDuration && (
+          <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
+            {t('Starting price per second; final charge = rate × duration')}
           </p>
         )}
       </div>

@@ -20,7 +20,16 @@ import { formatCurrencyFromUSD } from '@/lib/currency'
 
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
-import { getConfiguredGroupRatio, getDisplayGroupRatio } from './model-helpers'
+import {
+  getConfiguredGroupRatio,
+  getDisplayGroupRatio,
+  isPerDurationModel,
+} from './model-helpers'
+
+export type DurationPriceEntry = {
+  size: string
+  priceUSD: number
+}
 
 // ----------------------------------------------------------------------------
 // Price Calculation Utilities
@@ -269,4 +278,116 @@ export function formatRequestPrice(
     digitsSmall: 4,
     abbreviate: false,
   })
+}
+
+/**
+ * Collect size → $/s entries for per_duration models (ascending by price).
+ */
+export function getDurationPriceEntries(
+  model: PricingModel
+): DurationPriceEntry[] {
+  if (!isPerDurationModel(model) || !model.duration_pricing) {
+    return []
+  }
+
+  const sizePrices = model.duration_pricing.size_prices || {}
+  const entries: DurationPriceEntry[] = Object.entries(sizePrices)
+    .map(([size, priceUSD]) => ({ size, priceUSD: Number(priceUSD) }))
+    .filter(
+      (entry) =>
+        entry.size.trim() !== '' &&
+        Number.isFinite(entry.priceUSD) &&
+        entry.priceUSD > 0
+    )
+    .sort((a, b) => a.priceUSD - b.priceUSD || a.size.localeCompare(b.size))
+
+  return entries
+}
+
+/**
+ * Lowest positive size price, or fallback_price when no size rows exist.
+ */
+export function getDurationStartingPriceUSD(
+  model: PricingModel
+): number | null {
+  const entries = getDurationPriceEntries(model)
+  if (entries.length > 0) {
+    return entries[0].priceUSD
+  }
+
+  const fallback = Number(model.duration_pricing?.fallback_price)
+  if (Number.isFinite(fallback) && fallback > 0) {
+    return fallback
+  }
+
+  return null
+}
+
+function formatDurationUSD(
+  priceUSD: number,
+  showWithRecharge: boolean,
+  priceRate: number,
+  usdExchangeRate: number
+): string {
+  const adjusted = applyRechargeRate(
+    priceUSD,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+  return formatCurrencyFromUSD(adjusted, {
+    digitsLarge: 4,
+    digitsSmall: 4,
+    abbreviate: false,
+  })
+}
+
+/**
+ * Format a single per-second duration price (group-aware).
+ */
+export function formatDurationUnitPrice(
+  priceUSD: number,
+  groupRatio = 1,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1
+): string {
+  if (!Number.isFinite(priceUSD) || priceUSD <= 0) {
+    return '-'
+  }
+  return formatDurationUSD(
+    priceUSD * groupRatio,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+}
+
+/**
+ * Card/table summary for per_duration models: starting (lowest) $/sec.
+ */
+export function formatDurationSummaryPrice(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  selectedGroup?: string
+): string {
+  if (!isPerDurationModel(model)) {
+    return '-'
+  }
+
+  const starting = getDurationStartingPriceUSD(model)
+  if (starting == null) {
+    return '-'
+  }
+
+  const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
+  return formatDurationUnitPrice(
+    starting,
+    displayGroupRatio,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
 }

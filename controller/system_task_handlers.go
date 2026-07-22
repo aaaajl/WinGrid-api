@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/service/fission"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
@@ -22,6 +23,52 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(fissionDailyRefreshHandler{})
+}
+
+type fissionRefreshPayload struct {
+	PeriodMonth string `json:"period_month,omitempty"`
+	AsOfDate    string `json:"as_of_date,omitempty"`
+	UserId      int    `json:"user_id,omitempty"`
+	Manual      bool   `json:"manual,omitempty"`
+}
+
+type fissionDailyRefreshHandler struct{}
+
+func (fissionDailyRefreshHandler) Type() string {
+	return model.SystemTaskTypeFissionDailyRefresh
+}
+
+func (fissionDailyRefreshHandler) Enabled() bool {
+	return fission.ShouldRunScheduledToday(time.Now())
+}
+
+func (fissionDailyRefreshHandler) Interval() time.Duration {
+	return time.Minute
+}
+
+func (fissionDailyRefreshHandler) NewPayload() any {
+	return fissionRefreshPayload{Manual: false}
+}
+
+func (fissionDailyRefreshHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	payload := fissionRefreshPayload{}
+	if err := task.DecodePayload(&payload); err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, nil, err)
+		return
+	}
+	reporter := service.NewSystemTaskProgressReporter(task, runnerID)
+	summary, err := fission.RunRefresh(ctx, fission.RefreshRequest{
+		PeriodMonth: payload.PeriodMonth,
+		AsOfDate:    payload.AsOfDate,
+		UserID:      payload.UserId,
+		Manual:      payload.Manual,
+	}, reporter)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, summary, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and
