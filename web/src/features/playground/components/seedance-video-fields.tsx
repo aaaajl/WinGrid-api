@@ -49,16 +49,16 @@ export function SeedanceVideoFields({
       <div className='flex flex-col gap-1.5'>
         <Label>{t('Resolution')}</Label>
         <div className='flex flex-wrap gap-2'>
-          {capabilities.supported_resolutions.map((resolution) => (
+          {capabilities.supported_resolutions.map((size) => (
             <Button
-              key={resolution}
+              key={size}
               className='min-w-[4.5rem] flex-1'
               size='sm'
               type='button'
-              variant={state.resolution === resolution ? 'default' : 'outline'}
-              onClick={() => onChange({ resolution })}
+              variant={state.size === size ? 'default' : 'outline'}
+              onClick={() => onChange({ size })}
             >
-              {resolution}
+              {size}
             </Button>
           ))}
         </div>

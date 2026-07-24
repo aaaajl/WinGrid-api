@@ -41,7 +41,7 @@ describe('buildVideoRequest', () => {
     assert.deepEqual(req, {
       model: 'happyhorse-1.0-t2v',
       prompt: 'A cat running',
-      size: '1080P',
+      resolution: '1080P',
       duration: 8,
       metadata: {
         prompt_extend: true,
@@ -55,7 +55,7 @@ describe('buildVideoRequest', () => {
     const req = buildSeedanceVideoRequest({
       model: 'doubao-seedance-1-0-lite-t2v',
       prompt: 'Ocean waves',
-      resolution: '720p',
+      size: '720p',
       ratio: '16:9',
       duration: 5,
       watermark: true,
@@ -67,6 +67,7 @@ describe('buildVideoRequest', () => {
     assert.deepEqual(req, {
       model: 'doubao-seedance-1-0-lite-t2v',
       prompt: 'Ocean waves',
+      size: '720p',
       duration: 5,
       metadata: {
         resolution: '720p',

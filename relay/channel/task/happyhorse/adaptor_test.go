@@ -321,11 +321,15 @@ func TestGetModelList(t *testing.T) {
 	a := &TaskAdaptor{}
 	models := a.GetModelList()
 	assert.Equal(t, ModelList, models)
-	assert.Len(t, models, 4)
+	assert.Len(t, models, 8)
 	assert.Contains(t, models, "happyhorse-1.0-t2v")
 	assert.Contains(t, models, "happyhorse-1.0-i2v")
 	assert.Contains(t, models, "happyhorse-1.0-r2v")
 	assert.Contains(t, models, "happyhorse-1.0-video-edit")
+	assert.Contains(t, models, "happyhorse-1.1-t2v")
+	assert.Contains(t, models, "happyhorse-1.1-i2v")
+	assert.Contains(t, models, "happyhorse-1.1-r2v")
+	assert.Contains(t, models, "happyhorse-1.1-video-edit")
 }
 
 func TestGetChannelName(t *testing.T) {

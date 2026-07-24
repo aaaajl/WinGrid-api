@@ -164,6 +164,8 @@ export interface VideoGenerationRequest {
   model: string
   prompt: string
   size?: string
+  /** HappyHorse / DashScope-style resolution (alias of size on the gateway). */
+  resolution?: string
   duration?: number
   images?: string[]
   input_reference?: string

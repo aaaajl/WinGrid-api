@@ -873,8 +873,9 @@ func (t *TaskSubmitReq) HasImage() bool {
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
+		Metadata   json.RawMessage `json:"metadata,omitempty"`
+		Duration   json.RawMessage `json:"duration,omitempty"`
+		Resolution string          `json:"resolution,omitempty"` // alias → Size
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -904,14 +905,18 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 			var metadataObj map[string]interface{}
 			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
 				t.Metadata = metadataObj
-				return nil
+			}
+		} else {
+			var metadataObj map[string]interface{}
+			if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
+				t.Metadata = metadataObj
 			}
 		}
+	}
 
-		var metadataObj map[string]interface{}
-		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
-			t.Metadata = metadataObj
-		}
+	// Unify resolution → size so billing/adaptors only read Size.
+	if strings.TrimSpace(t.Size) == "" && strings.TrimSpace(aux.Resolution) != "" {
+		t.Size = strings.TrimSpace(aux.Resolution)
 	}
 
 	return nil

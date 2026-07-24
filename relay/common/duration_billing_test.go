@@ -3,6 +3,7 @@ package common
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,4 +33,21 @@ func TestResolveTaskBillingSize(t *testing.T) {
 		Metadata: map[string]interface{}{"resolution": "720p"},
 	}))
 	assert.Equal(t, "", ResolveTaskBillingSize(TaskSubmitReq{}))
+}
+
+func TestTaskSubmitReq_ResolutionAliasToSize(t *testing.T) {
+	var req TaskSubmitReq
+	require.NoError(t, common.Unmarshal([]byte(`{
+		"prompt":"hi","model":"happyhorse-1.1-t2v",
+		"duration":3,"resolution":"720P"
+	}`), &req))
+	assert.Equal(t, "720P", req.Size)
+	assert.Equal(t, "720P", ResolveTaskBillingSize(req))
+
+	// size wins when both are present
+	req = TaskSubmitReq{}
+	require.NoError(t, common.Unmarshal([]byte(`{
+		"prompt":"hi","size":"1080P","resolution":"720P"
+	}`), &req))
+	assert.Equal(t, "1080P", req.Size)
 }

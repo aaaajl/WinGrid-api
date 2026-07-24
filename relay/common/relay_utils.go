@@ -171,10 +171,21 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Size:     formData.Get("size"),
 		Metadata: make(map[string]interface{}),
 	}
+	// resolution is an alias of size (same as JSON UnmarshalJSON)
+	if req.Size == "" {
+		req.Size = formData.Get("resolution")
+	}
 
 	if durationStr := formData.Get("seconds"); durationStr != "" {
 		if duration, err := strconv.Atoi(durationStr); err == nil {
 			req.Duration = duration
+		}
+	}
+	if req.Duration == 0 {
+		if durationStr := formData.Get("duration"); durationStr != "" {
+			if duration, err := strconv.Atoi(durationStr); err == nil {
+				req.Duration = duration
+			}
 		}
 	}
 
@@ -274,7 +285,9 @@ func isKnownTaskField(field string) bool {
 		"image":           true,
 		"images":          true,
 		"size":            true,
+		"resolution":      true, // alias of size for video models
 		"duration":        true,
+		"seconds":         true,
 		"input_reference": true, // Sora 特有字段
 	}
 	return knownFields[field]

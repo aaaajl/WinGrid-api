@@ -149,6 +149,57 @@ func TestModelPriceHelperPerCallPerDurationAccuracy(t *testing.T) {
 	}
 }
 
+func TestModelPriceHelperPerCallPerDurationResolutionJSONAlias(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	saved := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		saved[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
+	})
+
+	const modelName = "per-duration-resolution-alias"
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"per-duration-resolution-alias":"per_duration"}`,
+		"billing_setting.duration_pricing": `{
+			"per-duration-resolution-alias":{
+				"fallback_price":10,
+				"size_prices":{"720P":0.132}
+			}
+		}`,
+		"group_ratio_setting.group_ratio": `{"default":1}`,
+	}))
+
+	var req relaycommon.TaskSubmitReq
+	require.NoError(t, common.Unmarshal([]byte(`{
+		"model":"per-duration-resolution-alias",
+		"prompt":"A quiet sunrise",
+		"duration":3,
+		"resolution":"720P"
+	}`), &req))
+	require.Equal(t, "720P", req.Size)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+	ctx.Set("group", "default")
+	ctx.Set("task_request", req)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: modelName,
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+	priceData, err := ModelPriceHelperPerCall(ctx, info)
+	require.NoError(t, err)
+	assert.Equal(t, int(0.396*common.QuotaPerUnit), priceData.Quota)
+	assert.False(t, info.DurationBilling.UsedFallback)
+	assert.Equal(t, 0.132, info.DurationBilling.BasePrice)
+}
+
 func TestModelPriceHelperPerCallPerDurationRejectsInvalidDuration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

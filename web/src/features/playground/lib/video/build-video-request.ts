@@ -44,7 +44,7 @@ export interface HappyHorseFormState {
 export interface SeedanceFormState {
   model: string
   prompt: string
-  resolution: string
+  size: string
   ratio: string
   duration: number
   watermark: boolean
@@ -66,7 +66,8 @@ export function buildHappyHorseVideoRequest(
   return {
     model: state.model,
     prompt: state.prompt.trim(),
-    size: state.size,
+    // HappyHorse upstream uses parameters.resolution; gateway aliases this to size.
+    resolution: state.size,
     duration: state.duration,
     metadata: {
       prompt_extend: state.promptExtend,
@@ -82,9 +83,11 @@ export function buildSeedanceVideoRequest(
   return {
     model: state.model,
     prompt: state.prompt.trim(),
+    size: state.size,
     duration: state.duration,
     metadata: {
-      resolution: state.resolution,
+      // Doubao upstream still reads metadata.resolution; mirror top-level size.
+      resolution: state.size,
       ratio: state.ratio,
       watermark: state.watermark,
       camera_fixed: state.cameraFixed,
@@ -174,7 +177,7 @@ export function getDefaultSeedanceFormState(
   return {
     model: model.model,
     prompt: '',
-    resolution: caps.supported_resolutions[0] ?? '720p',
+    size: caps.supported_resolutions[0] ?? '720p',
     ratio: caps.supported_ratios[0] ?? '16:9',
     // Prefer a mid-range default; Seedance 1.5+ rejects very short clips.
     duration: Math.max(caps.duration_range[0] ?? 5, 5),

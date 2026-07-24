@@ -36,7 +36,8 @@ func ResolveTaskBillingDuration(req TaskSubmitReq) (int, error) {
 
 // ResolveTaskBillingSize returns the normalized size key for price lookup.
 // Priority: Size → metadata.resolution → metadata.size. Empty size is allowed
-// (caller uses fallback price).
+// (caller uses fallback price). Top-level JSON "resolution" is folded into Size
+// by TaskSubmitReq.UnmarshalJSON.
 func ResolveTaskBillingSize(req TaskSubmitReq) string {
 	if size := strings.TrimSpace(req.Size); size != "" {
 		return durationbilling.NormalizeSizeKey(size)

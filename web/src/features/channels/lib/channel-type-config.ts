@@ -164,6 +164,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
+  61: {
+    id: 61,
+    name: CHANNEL_TYPES[61],
+    icon: 'tongyi',
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com',
+    hints: {
+      key: 'DashScope API Key',
+      models: 'happyhorse-1.0/1.1-t2v / i2v / r2v / video-edit',
+      baseUrl: 'Default: https://dashscope.aliyuncs.com',
+    },
+  },
 }
 
 /**
