@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { getPrivacyPolicyContent } from './content/privacy-policy'
+import { getAcceptableUsePolicyContent } from './content/aup'
 import { StaticLegalDocument } from './static-legal-document'
 
-export function PrivacyPolicy() {
+export function AcceptableUsePolicy() {
   return (
     <StaticLegalDocument
-      titleKey='Privacy Policy'
-      getContent={getPrivacyPolicyContent}
+      titleKey='Acceptable Use Policy'
+      getContent={getAcceptableUsePolicyContent}
     />
   )
 }

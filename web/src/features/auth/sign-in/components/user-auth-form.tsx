@@ -95,9 +95,7 @@ export function UserAuthForm({
     (state) => state.auth.setPending2FAFlowToken
   )
 
-  const hasUserAgreement = Boolean(status?.user_agreement_enabled)
-  const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
-  const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
+  const requiresLegalConsent = true
   const passkeyButtonDisabled =
     isPasskeyLoading ||
     !passkeySupported ||

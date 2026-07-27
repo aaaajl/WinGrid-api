@@ -32,18 +32,18 @@ interface LegalConsentProps {
 }
 
 export function LegalConsent({
-  status,
+  status: _status,
   checked,
   onCheckedChange,
   className,
 }: LegalConsentProps) {
   const { t } = useTranslation()
-  const hasUserAgreement = Boolean(status?.user_agreement_enabled)
-  const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
 
-  if (!hasUserAgreement && !hasPrivacyPolicy) {
-    return null
-  }
+  const links: Array<{ label: string; href: string }> = [
+    { label: t('User Agreement'), href: '/user-agreement' },
+    { label: t('Privacy Policy'), href: '/privacy-policy' },
+    { label: t('AUP'), href: '/aup' },
+  ]
 
   const handleChange = (value: boolean) => {
     onCheckedChange(value === true)
@@ -68,27 +68,26 @@ export function LegalConsent({
       >
         <span>
           {t('I have read and agree to the')}{' '}
-          {hasUserAgreement && (
-            <a
-              href='/user-agreement'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('User Agreement')}
-            </a>
-          )}
-          {hasUserAgreement && hasPrivacyPolicy && ' and the '}
-          {hasPrivacyPolicy && (
-            <a
-              href='/privacy-policy'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-primary hover:underline'
-            >
-              {t('Privacy Policy')}
-            </a>
-          )}
+          {links.map((link, index) => {
+            let separator: string | null = null
+            if (index > 0) {
+              separator =
+                index === links.length - 1 ? ` ${t('and')} ` : ', '
+            }
+            return (
+              <span key={link.href}>
+                {separator}
+                <a
+                  href={link.href}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-primary hover:underline'
+                >
+                  {link.label}
+                </a>
+              </span>
+            )
+          })}
           .
         </span>
       </Label>

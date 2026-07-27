@@ -284,7 +284,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Leave empty to disable the agreement requirement. Supports Markdown, HTML, or a full URL to redirect users.'
+                        'Leave empty to disable the agreement requirement. Supports Markdown, HTML, a full URL, or a JSON object keyed by language codes (en, zhCN, zhTW, fr, ja, ru, vi) so content follows the selected language.'
                       )}
                     </FormDescription>
                     <FormMessage />
@@ -309,7 +309,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     </FormControl>
                     <FormDescription>
                       {t(
-                        'Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, or a full URL to redirect users.'
+                        'Leave empty to disable the privacy policy requirement. Supports Markdown, HTML, a full URL, or a JSON object keyed by language codes (en, zhCN, zhTW, fr, ja, ru, vi) so content follows the selected language.'
                       )}
                     </FormDescription>
                     <FormMessage />

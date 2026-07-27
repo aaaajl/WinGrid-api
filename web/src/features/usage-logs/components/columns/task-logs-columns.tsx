@@ -36,6 +36,7 @@ import {
   type AudioClip,
 } from '../dialogs/audio-preview-dialog'
 import { FailReasonDialog } from '../dialogs/fail-reason-dialog'
+import { VideoPreviewDialog } from '../dialogs/video-preview-dialog'
 import { useUsageLogsContext } from '../usage-logs-provider'
 import {
   createDurationColumn,
@@ -54,6 +55,39 @@ function parseTaskData(data: unknown): unknown[] {
     }
   }
   return []
+}
+
+function isHttpUrl(value: unknown): value is string {
+  return typeof value === 'string' && /^https?:\/\//.test(value)
+}
+
+/** True when the URL is our own video proxy path for this task. */
+function isTaskProxyContentUrl(url: string, taskId: string): boolean {
+  if (!taskId) return false
+  return url.includes(`/v1/videos/${taskId}/content`)
+}
+
+/**
+ * Prefer a direct upstream/CDN result URL so the browser can play it without
+ * going through the proxy (avoids SSRF blocks / admin ownership mismatches).
+ * Fall back to the same-origin proxy for OpenAI/Gemini/data-URI style results.
+ */
+function resolveTaskVideoPreviewUrl(log: TaskLog): string | null {
+  const proxyUrl = `/v1/videos/${log.task_id}/content`
+  const candidates = [log.result_url, log.fail_reason]
+
+  for (const candidate of candidates) {
+    if (!isHttpUrl(candidate)) continue
+    if (isTaskProxyContentUrl(candidate, log.task_id)) {
+      return proxyUrl
+    }
+    return candidate
+  }
+
+  // Success video tasks may only expose a proxy URL via result_url that is
+  // relative / non-http, or rely entirely on the content endpoint.
+  if (log.task_id) return proxyUrl
+  return null
 }
 
 function AudioPreviewCell({ log }: { log: TaskLog }) {
@@ -246,22 +280,30 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
           log.action === TASK_ACTIONS.REMIX_GENERATE
         const isSuccess = status === TASK_STATUS.SUCCESS
         // Prefer result_url; fall back to fail_reason for legacy rows that stored the URL there
-        const resultUrl = log.result_url
-        const hasResultUrl =
-          typeof resultUrl === 'string' && /^https?:\/\//.test(resultUrl)
-        const hasLegacyUrl = !!failReason?.startsWith('http')
+        const hasResultUrl = isHttpUrl(log.result_url)
+        const hasLegacyUrl = isHttpUrl(failReason)
+        const videoUrl =
+          isSuccess && isVideoTask && (hasResultUrl || hasLegacyUrl)
+            ? resolveTaskVideoPreviewUrl(log)
+            : null
 
-        if (isSuccess && isVideoTask && (hasResultUrl || hasLegacyUrl)) {
-          const videoUrl = `/v1/videos/${log.task_id}/content`
+        if (videoUrl) {
           return (
-            <a
-              href={videoUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              className='text-foreground text-xs hover:underline'
-            >
-              {t('Click to preview video')}
-            </a>
+            <>
+              <button
+                type='button'
+                className='text-foreground text-left text-xs hover:underline'
+                onClick={() => setDialogOpen(true)}
+              >
+                {t('Click to preview video')}
+              </button>
+              <VideoPreviewDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                videoUrl={videoUrl}
+                taskId={log.task_id}
+              />
+            </>
           )
         }
 

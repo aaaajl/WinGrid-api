@@ -16,14 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { getPrivacyPolicyContent } from './content/privacy-policy'
-import { StaticLegalDocument } from './static-legal-document'
+import { createFileRoute } from '@tanstack/react-router'
 
-export function PrivacyPolicy() {
-  return (
-    <StaticLegalDocument
-      titleKey='Privacy Policy'
-      getContent={getPrivacyPolicyContent}
-    />
-  )
-}
+import { AcceptableUsePolicy } from '@/features/legal'
+
+export const Route = createFileRoute('/aup')({
+  component: AcceptableUsePolicy,
+})

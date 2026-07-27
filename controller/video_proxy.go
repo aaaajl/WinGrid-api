@@ -38,7 +38,16 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	userID := c.GetInt("id")
-	task, exists, err := model.GetByTaskId(userID, taskID)
+	role := c.GetInt("role")
+	var task *model.Task
+	var exists bool
+	var err error
+	// Admins reviewing task logs need to preview other users' videos.
+	if role >= common.RoleAdminUser {
+		task, exists, err = model.GetByOnlyTaskId(taskID)
+	} else {
+		task, exists, err = model.GetByTaskId(userID, taskID)
+	}
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query task %s: %s", taskID, err.Error()))
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")
@@ -117,6 +126,12 @@ func VideoProxy(c *gin.Context) {
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
+		// Guard against self-referential proxy URLs (would recurse forever).
+		if isTaskProxyContentURL(videoURL, task.TaskID) {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Video ResultURL points to proxy itself for task %s", taskID))
+			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to fetch video content")
+			return
+		}
 	}
 
 	videoURL = strings.TrimSpace(videoURL)

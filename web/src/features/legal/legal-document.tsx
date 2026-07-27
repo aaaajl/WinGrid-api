@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { FileWarning } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
@@ -27,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
 
+import { resolveLocalizedContent } from './resolve-localized-content'
 import type { LegalDocumentResponse } from './types'
 
 type LegalDocumentProps = {
@@ -42,14 +44,21 @@ export function LegalDocument({
   fetchDocument,
   emptyMessage,
 }: LegalDocumentProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: [queryKey],
     queryFn: fetchDocument,
     staleTime: 10 * 60 * 1000,
   })
 
-  const rawContent = data?.data?.trim() ?? ''
+  const language = i18n.resolvedLanguage || i18n.language
+  const rawContent = useMemo(() => {
+    const stored = data?.data?.trim() ?? ''
+    if (!stored) {
+      return ''
+    }
+    return resolveLocalizedContent(stored, language).trim()
+  }, [data?.data, language])
   const hasContent = rawContent.length > 0
   const isUrl = hasContent && isHttpUrl(rawContent)
   const contentIsHtml = hasContent && isLikelyHtml(rawContent)
