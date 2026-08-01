@@ -301,6 +301,7 @@ var defaultModelPrice = map[string]float64{
 	"veo-3.0-fast-generate-001":      0.15,
 	"veo-3.1-generate-preview":       0.4,
 	"veo-3.1-fast-generate-preview":  0.15,
+	"MiniMax-H3":                     0.13,
 	// HappyHorse 百炼乘风视频生成 (¥0.14/秒, 以5秒计基准)
 	"happyhorse-1.0-t2v":        0.1,
 	"happyhorse-1.0-i2v":        0.1,
