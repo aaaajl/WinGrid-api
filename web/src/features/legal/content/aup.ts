@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { resolveLocalizedContent } from '../resolve-localized-content'
 
 const AUP_BY_LANGUAGE = {
-  en: `**Last Updated:** July 27, 2026
+  en: `**Last Updated:** July 28, 2026
 
 This Acceptable Use Policy ("Policy") governs your use of Unified API Calling Service for Large Language Models Service, provided by Shanghai WinGrid Technology Co., Ltd. By accessing or using the Service, you agree to comply with this Policy at all times. This Policy is incorporated by reference into our Terms of Service.
 
@@ -27,7 +27,7 @@ This Acceptable Use Policy ("Policy") governs your use of Unified API Calling Se
 
 You must not use the Service to input, generate, store, or distribute any content that falls into the following categories:
 
-- **NSFW & Sexually Explicit Content**: Nudity, pornography, sexually suggestive poses, graphic sexual acts, erotic roleplay, or any content intended to be sexually arousing.
+- **Not Suitable for Work (NSFW), Explicit, or Sexually Suggestive Content**: Content that is not suitable for the workplace (NSFW), sexually explicit, or sexually suggestive — including nudity, pornography, sexually suggestive poses, graphic sexual acts, erotic roleplay, or any content intended to be sexually arousing — is strictly prohibited.
 
 - **Violence and Gore**: Extreme violence, blood, mutilation, self-harm, suicide, or graphic depictions of physical abuse.
 
@@ -67,7 +67,7 @@ The following use cases are strictly prohibited:
 
 - Face-swap, deepfake, and face-manipulation tools.
 
-- Generating or distributing sexually explicit or NSFW content.
+- Generating or distributing content that is not suitable for the workplace (NSFW), sexually explicit, or sexually suggestive.
 
 - Creating content for dating or adult entertainment platforms.
 
@@ -94,7 +94,7 @@ If you believe your generation prompt was incorrectly flagged or blocked, you ma
 Please include your user ID, timestamp, and details of the blocked prompt. We will review your case and respond as soon as possible.
 `,
 
-  zhCN: `**最后更新：** 2026年7月27日
+  zhCN: `**最后更新：** 2026年7月28日
 
 本《可接受使用政策》（以下简称“本政策”）适用于您对上海赢格科技有限公司提供的大语言模型统一 API 调用服务（以下简称“本服务”）的使用。访问或使用本服务，即表示您同意在任何时候遵守本政策。本政策通过引用并入我们的服务条款。
 
@@ -102,7 +102,7 @@ Please include your user ID, timestamp, and details of the blocked prompt. We wi
 
 您不得使用本服务输入、生成、存储或分发属于以下类别的任何内容：
 
-- **NSFW 与色情露骨内容**：裸露、色情、性暗示姿势、露骨性行为、情色角色扮演，或任何旨在引起性兴奋的内容。
+- **不适合工作场所（NSFW）、露骨或带有性暗示的内容**：严禁生成或传播不适合工作场所（NSFW）、色情露骨或带有性暗示的内容，包括裸露、色情、性暗示姿势、露骨性行为、情色角色扮演，或任何旨在引起性兴奋的内容。
 
 - **暴力与血腥**：极端暴力、血液、肢解、自残、自杀，或对人身虐待的露骨描绘。
 
@@ -142,7 +142,7 @@ Please include your user ID, timestamp, and details of the blocked prompt. We wi
 
 - 换脸、深度伪造与人脸操纵工具。
 
-- 生成或分发色情露骨或 NSFW 内容。
+- 生成或分发不适合工作场所（NSFW）、色情露骨或带有性暗示的内容。
 
 - 为约会或成人娱乐平台创建内容。
 
@@ -169,7 +169,7 @@ Please include your user ID, timestamp, and details of the blocked prompt. We wi
 请提供您的用户 ID、时间戳以及被拦截提示词的详细信息。我们将审核您的情况并尽快回复。
 `,
 
-  zhTW: `**最後更新：** 2026年7月27日
+  zhTW: `**最後更新：** 2026年7月28日
 
 本《可接受使用政策》（以下簡稱「本政策」）適用於您對上海贏格科技有限公司提供的大型語言模型統一 API 呼叫服務（以下簡稱「本服務」）的使用。存取或使用本服務，即表示您同意在任何時候遵守本政策。本政策透過引用併入我們的服務條款。
 
@@ -177,7 +177,7 @@ Please include your user ID, timestamp, and details of the blocked prompt. We wi
 
 您不得使用本服務輸入、生成、儲存或分發屬於以下類別的任何內容：
 
-- **NSFW 與色情露骨內容**：裸露、色情、性暗示姿勢、露骨性行為、情色角色扮演，或任何旨在引起性興奮的內容。
+- **不適合工作場所（NSFW）、露骨或帶有性暗示的內容**：嚴禁生成或傳播不適合工作場所（NSFW）、色情露骨或帶有性暗示的內容，包括裸露、色情、性暗示姿勢、露骨性行為、情色角色扮演，或任何旨在引起性興奮的內容。
 
 - **暴力與血腥**：極端暴力、血液、肢解、自殘、自殺，或對人身虐待的露骨描繪。
 
@@ -217,7 +217,7 @@ Please include your user ID, timestamp, and details of the blocked prompt. We wi
 
 - 換臉、深度偽造與人臉操縱工具。
 
-- 生成或分發色情露骨或 NSFW 內容。
+- 生成或分發不適合工作場所（NSFW）、色情露骨或帶有性暗示的內容。
 
 - 為約會或成人娛樂平台建立內容。
 
@@ -244,7 +244,7 @@ Please include your user ID, timestamp, and details of the blocked prompt. We wi
 請提供您的使用者 ID、時間戳以及被攔截提示詞的詳細資訊。我們將審核您的情況並儘快回覆。
 `,
 
-  fr: `**Dernière mise à jour :** 27 juillet 2026
+  fr: `**Dernière mise à jour :** 28 juillet 2026
 
 La présente Politique d'utilisation acceptable (« Politique ») régit votre utilisation du service d'appel d'API unifié pour grands modèles de langage, fourni par Shanghai WinGrid Technology Co., Ltd. En accédant au Service ou en l'utilisant, vous acceptez de respecter cette Politique à tout moment. Cette Politique est incorporée par référence dans nos Conditions d'utilisation.
 
@@ -252,7 +252,7 @@ La présente Politique d'utilisation acceptable (« Politique ») régit votre u
 
 Vous ne devez pas utiliser le Service pour saisir, générer, stocker ou diffuser tout contenu relevant des catégories suivantes :
 
-- **Contenu NSFW et sexuellement explicite** : nudité, pornographie, poses sexuellement suggestives, actes sexuels graphiques, jeux de rôle érotiques, ou tout contenu destiné à susciter une excitation sexuelle.
+- **Contenu non adapté au lieu de travail (NSFW), explicite ou sexuellement suggestif** : tout contenu non adapté au lieu de travail (NSFW), sexuellement explicite ou sexuellement suggestif — y compris la nudité, la pornographie, les poses sexuellement suggestives, les actes sexuels graphiques, les jeux de rôle érotiques, ou tout contenu destiné à susciter une excitation sexuelle — est strictement interdit.
 
 - **Violence et gore** : violence extrême, sang, mutilation, automutilation, suicide, ou représentations graphiques de maltraitance physique.
 
@@ -292,7 +292,7 @@ Les cas d'utilisation suivants sont strictement interdits :
 
 - Outils de face-swap, deepfake et de manipulation faciale.
 
-- Génération ou diffusion de contenu sexuellement explicite ou NSFW.
+- Génération ou diffusion de contenu non adapté au lieu de travail (NSFW), sexuellement explicite ou sexuellement suggestif.
 
 - Création de contenu pour des plateformes de rencontres ou de divertissement pour adultes.
 
@@ -319,7 +319,7 @@ Si vous estimez que votre invite de génération a été incorrectement signalé
 Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de l'invite bloquée. Nous examinerons votre dossier et répondrons dans les meilleurs délais.
 `,
 
-  ja: `**最終更新日：** 2026年7月27日
+  ja: `**最終更新日：** 2026年7月28日
 
 本利用規約（「本ポリシー」）は、Shanghai WinGrid Technology Co., Ltd.（上海赢格科技有限公司）が提供する大規模言語モデル向け統合 API 呼び出しサービス（「本サービス」）のご利用に適用されます。本サービスにアクセスまたは利用することにより、お客様は常に本ポリシーを遵守することに同意したものとみなされます。本ポリシーは、参照により利用規約に組み込まれます。
 
@@ -327,7 +327,7 @@ Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de
 
 お客様は、以下のカテゴリに該当するコンテンツを本サービスに入力、生成、保存、または配布してはなりません。
 
-- **NSFW および性的に露骨なコンテンツ**：裸体、ポルノ、性的示唆のあるポーズ、露骨な性行為、エロティックなロールプレイ、または性的興奮を目的とするあらゆるコンテンツ。
+- **職場に不適切な（NSFW）、露骨、または性的示唆のあるコンテンツ**：職場に不適切（NSFW）、性的に露骨、または性的示唆のあるコンテンツ — 裸体、ポルノ、性的示唆のあるポーズ、露骨な性行為、エロティックなロールプレイ、または性的興奮を目的とするあらゆるコンテンツを含む — の生成・配布は厳禁です。
 
 - **暴力および残虐表現**：極度の暴力、流血、切断、自傷、自殺、または身体的虐待の露骨な描写。
 
@@ -367,7 +367,7 @@ Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de
 
 - 顔交換、ディープフェイク、顔操作ツール。
 
-- 性的に露骨または NSFW なコンテンツの生成または配布。
+- 職場に不適切な（NSFW）、性的に露骨、または性的示唆のあるコンテンツの生成または配布。
 
 - 出会い系またはアダルトエンターテインメント向けプラットフォーム用コンテンツの作成。
 
@@ -394,7 +394,7 @@ Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de
 ユーザー ID、タイムスタンプ、ブロックされたプロンプトの詳細を含めてください。内容を確認し、できるだけ早く回答します。
 `,
 
-  ru: `**Последнее обновление:** 27 июля 2026 г.
+  ru: `**Последнее обновление:** 28 июля 2026 г.
 
 Настоящая Политика допустимого использования («Политика») регулирует использование вами Единого API-сервиса вызова больших языковых моделей, предоставляемого Shanghai WinGrid Technology Co., Ltd. Получая доступ к Сервису или используя его, вы соглашаетесь всегда соблюдать настоящую Политику. Настоящая Политика включена в Условия обслуживания посредством ссылки.
 
@@ -402,7 +402,7 @@ Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de
 
 Вы не должны использовать Сервис для ввода, генерации, хранения или распространения контента, относящегося к следующим категориям:
 
-- **NSFW и сексуально откровенный контент**: нагота, порнография, сексуально вызывающие позы, графические сексуальные акты, эротическая ролевая игра или любой контент, предназначенный для сексуального возбуждения.
+- **Контент, непригодный для рабочего места (NSFW), откровенный или сексуально вызывающий**: контент, непригодный для рабочего места (NSFW), сексуально откровенный или сексуально вызывающий — включая наготу, порнографию, сексуально вызывающие позы, графические сексуальные акты, эротическую ролевую игру или любой контент, предназначенный для сексуального возбуждения — строго запрещён.
 
 - **Насилие и жестокость**: крайнее насилие, кровь, увечья, членовредительство, самоубийство или графические изображения физического насилия.
 
@@ -442,7 +442,7 @@ Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de
 
 - Инструменты замены лиц, дипфейки и манипуляции с лицами.
 
-- Генерация или распространение сексуально откровенного или NSFW-контента.
+- Генерация или распространение контента, непригодного для рабочего места (NSFW), сексуально откровенного или сексуально вызывающего.
 
 - Создание контента для сайтов знакомств или платформ развлечений для взрослых.
 
@@ -469,7 +469,7 @@ Veuillez indiquer votre identifiant utilisateur, l'horodatage et les détails de
 Укажите свой идентификатор пользователя, временную метку и сведения о заблокированном запросе. Мы рассмотрим ваш случай и ответим как можно скорее.
 `,
 
-  vi: `**Cập nhật lần cuối:** 27 tháng 7 năm 2026
+  vi: `**Cập nhật lần cuối:** 28 tháng 7 năm 2026
 
 Chính sách sử dụng chấp nhận được này (“Chính sách”) điều chỉnh việc bạn sử dụng Dịch vụ gọi API thống nhất cho các mô hình ngôn ngữ lớn, do Shanghai WinGrid Technology Co., Ltd. cung cấp. Bằng cách truy cập hoặc sử dụng Dịch vụ, bạn đồng ý tuân thủ Chính sách này mọi lúc. Chính sách này được đưa vào Điều khoản dịch vụ của chúng tôi bằng cách tham chiếu.
 
@@ -477,7 +477,7 @@ Chính sách sử dụng chấp nhận được này (“Chính sách”) điề
 
 Bạn không được sử dụng Dịch vụ để nhập, tạo, lưu trữ hoặc phân phối bất kỳ nội dung nào thuộc các danh mục sau:
 
-- **Nội dung NSFW và khiêu dâm rõ ràng**: khỏa thân, khiêu dâm, tư thế gợi dục, hành vi tình dục lộ liễu, nhập vai khiêu dâm, hoặc bất kỳ nội dung nào nhằm khêu gợi tình dục.
+- **Nội dung không phù hợp nơi làm việc (NSFW), lộ liễu hoặc gợi dục**: nội dung không phù hợp nơi làm việc (NSFW), khiêu dâm rõ ràng hoặc mang tính gợi dục — bao gồm khỏa thân, khiêu dâm, tư thế gợi dục, hành vi tình dục lộ liễu, nhập vai khiêu dâm, hoặc bất kỳ nội dung nào nhằm khêu gợi tình dục — đều bị nghiêm cấm.
 
 - **Bạo lực và máu me**: bạo lực cực đoan, máu, cắt xẻ, tự hại, tự sát, hoặc mô tả lộ liễu về lạm dụng thể chất.
 
@@ -517,7 +517,7 @@ Các trường hợp sử dụng sau bị nghiêm cấm:
 
 - Công cụ đổi mặt, deepfake và thao tác khuôn mặt.
 
-- Tạo hoặc phân phối nội dung khiêu dâm rõ ràng hoặc NSFW.
+- Tạo hoặc phân phối nội dung không phù hợp nơi làm việc (NSFW), khiêu dâm rõ ràng hoặc mang tính gợi dục.
 
 - Tạo nội dung cho nền tảng hẹn hò hoặc giải trí người lớn.
 

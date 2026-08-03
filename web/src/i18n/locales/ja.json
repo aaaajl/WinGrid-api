@@ -4684,6 +4684,7 @@
     "This month": "今月",
     "This page has not been created yet.": "このページはまだ作成されていません。",
     "This plan does not allow balance redemption": "このプランでは残高での交換は許可されていません",
+    "This platform is independently developed and operated, and is not affiliated with any AI model creator or provider.": "本プラットフォームは独立して開発・運営されており、いかなる AI モデルの作成者または提供者とも提携関係にありません。",
     "This project must be used in compliance with the": "このプロジェクトは、以下を遵守して使用する必要があります",
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "この操作はこのチャンネルから失敗した {{count}} 個のモデルを削除します。元に戻せません。",
     "This route discovers upstream OpenAI models and cannot be split or matched by client model rules.": "このルートはアップストリームの OpenAI モデルを検出するためのもので、分割やクライアントモデルルールによる照合はできません。",

@@ -4684,6 +4684,7 @@
     "This month": "В этом месяце",
     "This page has not been created yet.": "Эта страница еще не создана.",
     "This plan does not allow balance redemption": "Этот план не разрешает оплату балансом",
+    "This platform is independently developed and operated, and is not affiliated with any AI model creator or provider.": "Эта платформа разработана и управляется независимо и не связана ни с одним создателем или поставщиком моделей ИИ.",
     "This project must be used in compliance with the": "Этот проект должен использоваться в соответствии с",
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "Это удалит {{count}} неуспешных моделей из этого канала. Действие необратимо.",
     "This route discovers upstream OpenAI models and cannot be split or matched by client model rules.": "Этот маршрут обнаруживает модели OpenAI вышестоящего сервиса; его нельзя разделять или сопоставлять по правилам клиентских моделей.",

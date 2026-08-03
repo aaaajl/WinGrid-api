@@ -4669,6 +4669,7 @@
     "This month": "本月獲得",
     "This page has not been created yet.": "此頁面尚未建立。",
     "This plan does not allow balance redemption": "該套餐不允許使用餘額兌換",
+    "This platform is independently developed and operated, and is not affiliated with any AI model creator or provider.": "本平台為獨立開發與運營，與任何 AI 模型創建者或提供方無任何關聯。",
     "This project must be used in compliance with the": "此項目的使用必須遵守",
     "This removes {{count}} failed models from this channel. This action cannot be undone.": "此操作將從該渠道移除 {{count}} 個測試失敗的模型，且無法撤銷。",
     "This route discovers upstream OpenAI models and cannot be split or matched by client model rules.": "此路由用於探索上游 OpenAI 模型，無法拆分或使用用戶端模型規則配對。",

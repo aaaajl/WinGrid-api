@@ -228,10 +228,17 @@ export function Footer(props: FooterProps) {
       >
         <div className='mx-auto w-full max-w-6xl px-6 py-5'>
           <div className='bg-muted/20 border-border/50 flex flex-col items-center justify-between gap-4 rounded-2xl border px-4 py-4 backdrop-blur-sm sm:flex-row sm:px-5'>
-            <div
-              className='custom-footer text-muted-foreground min-w-0 text-center text-sm sm:text-left'
-              dangerouslySetInnerHTML={{ __html: footerHtml }}
-            />
+            <div className='flex min-w-0 flex-col items-center gap-2 sm:items-start'>
+              <div
+                className='custom-footer text-muted-foreground min-w-0 text-center text-sm sm:text-left'
+                dangerouslySetInnerHTML={{ __html: footerHtml }}
+              />
+              <p className='text-muted-foreground/45 max-w-md text-center text-[11px] leading-relaxed sm:text-left'>
+                {t(
+                  'This platform is independently developed and operated, and is not affiliated with any AI model creator or provider.'
+                )}
+              </p>
+            </div>
             <div className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-4 text-xs sm:w-auto sm:justify-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
               <LegalLinks />
               <ProjectAttribution currentYear={currentYear} inline />
@@ -262,6 +269,11 @@ export function Footer(props: FooterProps) {
             </Link>
             <p className='text-muted-foreground/60 mt-3 max-w-[200px] text-xs leading-relaxed'>
               {t('Powerful API Management Platform')}
+            </p>
+            <p className='text-muted-foreground/45 mt-3 max-w-xs text-[11px] leading-relaxed'>
+              {t(
+                'This platform is independently developed and operated, and is not affiliated with any AI model creator or provider.'
+              )}
             </p>
           </div>
 
