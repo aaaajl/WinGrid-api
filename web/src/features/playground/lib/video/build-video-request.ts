@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type {
   GenericCapabilities,
   HappyHorseCapabilities,
+  MiniMaxH3Capabilities,
   PlaygroundVideoModel,
   SeedanceCapabilities,
   VideoGenerationRequest,
@@ -28,6 +29,7 @@ import type {
 export function getVideoRequestProfile(modelName: string): VideoRequestProfile {
   if (modelName.startsWith('happyhorse-')) return 'happyhorse'
   if (modelName.startsWith('doubao-seedance-')) return 'seedance'
+  if (modelName.toLowerCase() === 'minimax-h3') return 'minimax_h3'
   return 'generic'
 }
 
@@ -53,12 +55,27 @@ export interface SeedanceFormState {
   generateAudio: boolean
 }
 
+export interface MiniMaxH3FormState {
+  model: string
+  prompt: string
+  resolution: string
+  duration: number
+  ratio: string
+  aigcWatermark: boolean
+}
+
 export interface GenericFormState {
   model: string
   prompt: string
   size: string
   duration: number
 }
+
+export type VideoFormState =
+  | HappyHorseFormState
+  | SeedanceFormState
+  | MiniMaxH3FormState
+  | GenericFormState
 
 export function buildHappyHorseVideoRequest(
   state: HappyHorseFormState
@@ -97,6 +114,22 @@ export function buildSeedanceVideoRequest(
   }
 }
 
+export function buildMiniMaxH3VideoRequest(
+  state: MiniMaxH3FormState
+): VideoGenerationRequest {
+  const prompt = state.prompt.trim()
+  return {
+    model: state.model,
+    // Kept for task-queue display; hailuo_v2 ignores unknown fields.
+    prompt,
+    content: [{ type: 'text', text: prompt }],
+    resolution: state.resolution,
+    duration: state.duration,
+    ratio: state.ratio,
+    aigc_watermark: state.aigcWatermark,
+  }
+}
+
 export function buildGenericVideoRequest(
   state: GenericFormState
 ): VideoGenerationRequest {
@@ -110,13 +143,16 @@ export function buildGenericVideoRequest(
 
 export function buildVideoRequest(
   profile: VideoRequestProfile,
-  state: HappyHorseFormState | SeedanceFormState | GenericFormState
+  state: VideoFormState
 ): VideoGenerationRequest {
   if (profile === 'happyhorse') {
     return buildHappyHorseVideoRequest(state as HappyHorseFormState)
   }
   if (profile === 'seedance') {
     return buildSeedanceVideoRequest(state as SeedanceFormState)
+  }
+  if (profile === 'minimax_h3') {
+    return buildMiniMaxH3VideoRequest(state as MiniMaxH3FormState)
   }
   return buildGenericVideoRequest(state as GenericFormState)
 }
@@ -134,7 +170,16 @@ export function isHappyHorseCapabilities(
 export function isSeedanceCapabilities(
   capabilities: PlaygroundVideoModel['capabilities']
 ): capabilities is SeedanceCapabilities {
-  return 'supported_resolutions' in capabilities
+  return (
+    'supported_resolutions' in capabilities &&
+    !('form' in capabilities)
+  )
+}
+
+export function isMiniMaxH3Capabilities(
+  capabilities: PlaygroundVideoModel['capabilities']
+): capabilities is MiniMaxH3Capabilities {
+  return 'form' in capabilities && capabilities.form === 'minimax_h3'
 }
 
 export function isGenericCapabilities(
@@ -184,6 +229,32 @@ export function getDefaultSeedanceFormState(
     watermark: false,
     cameraFixed: false,
     generateAudio: false,
+  }
+}
+
+export function getDefaultMiniMaxH3FormState(
+  model: PlaygroundVideoModel
+): MiniMaxH3FormState {
+  const caps = isMiniMaxH3Capabilities(model.capabilities)
+    ? model.capabilities
+    : {
+        supported_resolutions: ['768P', '2K'],
+        supported_ratios: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+        duration_range: [4, 15] as [number, number],
+        form: 'minimax_h3' as const,
+      }
+
+  return {
+    model: model.model,
+    prompt: '',
+    resolution: caps.supported_resolutions.includes('2K')
+      ? '2K'
+      : (caps.supported_resolutions[0] ?? '2K'),
+    duration: Math.max(caps.duration_range[0] ?? 5, 5),
+    ratio: caps.supported_ratios.includes('16:9')
+      ? '16:9'
+      : (caps.supported_ratios[0] ?? '16:9'),
+    aigcWatermark: false,
   }
 }
 

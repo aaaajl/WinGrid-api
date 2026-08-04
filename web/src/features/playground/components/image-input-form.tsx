@@ -31,11 +31,18 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { fetchTokenKey, getUserTokens } from '../api'
+import { STORAGE_KEYS_IMAGE } from '../constants'
 import {
   buildImageRequest,
   getDefaultImageFormState,
   type ImageFormState,
 } from '../lib/image/build-image-request'
+import {
+  loadImageDraft,
+  loadStoredTokenId,
+  saveImageDraft,
+  saveStoredTokenId,
+} from '../lib/storage/ui-draft'
 import type {
   ImageGenerationRequest,
   ImageRequestProfile,
@@ -65,13 +72,21 @@ interface ImageInputFormProps {
 
 export function ImageInputForm(props: ImageInputFormProps) {
   const { t } = useTranslation()
+  const initialDraft = useMemo(() => loadImageDraft(), [])
 
   const [selectedModelName, setSelectedModelName] = useState(
-    props.imageModels[0]?.model ?? ''
+    () => initialDraft?.model || props.imageModels[0]?.model || ''
   )
-  const [formState, setFormState] = useState<ImageFormState | null>(null)
+  const [formState, setFormState] = useState<ImageFormState | null>(
+    () => initialDraft?.form ?? null
+  )
   const [tokens, setTokens] = useState<TokenOption[]>([])
-  const [selectedTokenId, setSelectedTokenId] = useState('')
+  const [selectedTokenId, setSelectedTokenId] = useState(
+    () =>
+      initialDraft?.tokenId ||
+      loadStoredTokenId(STORAGE_KEYS_IMAGE.TOKEN_ID) ||
+      ''
+  )
   const [isLoadingTokens, setIsLoadingTokens] = useState(false)
 
   const selectedModel = useMemo(
@@ -94,9 +109,20 @@ export function ImageInputForm(props: ImageInputFormProps) {
         const list = await getUserTokens()
         if (cancelled) return
         setTokens(list)
-        if (list.length > 0) {
-          setSelectedTokenId(String(list[0].id))
+        if (list.length === 0) {
+          setSelectedTokenId('')
+          return
         }
+        setSelectedTokenId((current) => {
+          if (current && list.some((token) => String(token.id) === current)) {
+            return current
+          }
+          const saved = loadStoredTokenId(STORAGE_KEYS_IMAGE.TOKEN_ID)
+          if (saved && list.some((token) => String(token.id) === saved)) {
+            return saved
+          }
+          return String(list[0].id)
+        })
       } catch {
         if (!cancelled) setTokens([])
       } finally {
@@ -120,6 +146,9 @@ export function ImageInputForm(props: ImageInputFormProps) {
   useEffect(() => {
     if (!selectedModel) return
     setFormState((current) => {
+      if (current?.model === selectedModel.model) {
+        return current
+      }
       const next = getDefaultImageFormState(selectedModel)
       if (current?.prompt) {
         next.prompt = current.prompt
@@ -136,6 +165,18 @@ export function ImageInputForm(props: ImageInputFormProps) {
     )
   }, [props.onReusePrompt, props.reusePromptNonce])
 
+  useEffect(() => {
+    saveStoredTokenId(STORAGE_KEYS_IMAGE.TOKEN_ID, selectedTokenId)
+  }, [selectedTokenId])
+
+  useEffect(() => {
+    saveImageDraft({
+      model: selectedModelName,
+      tokenId: selectedTokenId,
+      form: formState,
+    })
+  }, [selectedModelName, selectedTokenId, formState])
+
   const getKeyPlaceholder = () => {
     if (isLoadingTokens) return t('Loading...')
     if (tokens.length === 0) return t('No API keys available')
@@ -148,14 +189,13 @@ export function ImageInputForm(props: ImageInputFormProps) {
     selectedModel?.capabilities.fields.includes('n') === true && !nLocked
 
   const canSubmit =
-    !props.isSubmitting &&
     !!formState?.prompt.trim() &&
     !!selectedTokenId &&
     !!selectedModel &&
     !!formState
 
   const handleSubmit = async () => {
-    if (props.isSubmitting || !selectedModel || !formState) return
+    if (!selectedModel || !formState) return
     if (!formState.prompt.trim()) return
     if (!selectedTokenId) return
 

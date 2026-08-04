@@ -11,6 +11,7 @@ import (
 const (
 	VideoProfileHappyHorse = "happyhorse"
 	VideoProfileSeedance   = "seedance"
+	VideoProfileMiniMaxH3  = "minimax_h3"
 	VideoProfileGeneric    = "generic"
 )
 
@@ -21,6 +22,8 @@ func VideoRequestProfile(modelName string) string {
 		return VideoProfileHappyHorse
 	case strings.HasPrefix(modelName, "doubao-seedance-"):
 		return VideoProfileSeedance
+	case strings.EqualFold(modelName, "MiniMax-H3"):
+		return VideoProfileMiniMaxH3
 	default:
 		// Catalog models tagged t2v without a known vendor prefix use the
 		// generic TaskSubmitReq shape (prompt/size/duration).
@@ -85,6 +88,16 @@ func genericCapabilities(_ string) dto.GenericVideoCapabilities {
 	}
 }
 
+func miniMaxH3Capabilities(_ string) dto.MiniMaxH3VideoCapabilities {
+	return dto.MiniMaxH3VideoCapabilities{
+		SupportedResolutions: []string{"768P", "2K"},
+		SupportedRatios:      []string{"21:9", "16:9", "4:3", "1:1", "3:4", "9:16"},
+		DurationRange:        [2]int{4, 15},
+		Fields:               []string{"resolution", "ratio", "aigc_watermark"},
+		Form:                 "minimax_h3",
+	}
+}
+
 func playgroundVideoLabel(_profile, modelName string) string {
 	return modelName
 }
@@ -127,6 +140,8 @@ func ListPlaygroundVideoModels(group string) ([]dto.PlaygroundVideoModel, error)
 			item.Capabilities = happyHorseCapabilities(meta.ModelName)
 		case VideoProfileSeedance:
 			item.Capabilities = seedanceCapabilities(meta.ModelName)
+		case VideoProfileMiniMaxH3:
+			item.Capabilities = miniMaxH3Capabilities(meta.ModelName)
 		default:
 			item.Capabilities = genericCapabilities(meta.ModelName)
 		}

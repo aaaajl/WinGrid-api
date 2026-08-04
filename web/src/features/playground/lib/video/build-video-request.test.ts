@@ -22,8 +22,10 @@ import { describe, test } from 'node:test'
 import {
   buildGenericVideoRequest,
   buildHappyHorseVideoRequest,
+  buildMiniMaxH3VideoRequest,
   buildSeedanceVideoRequest,
   buildVideoRequest,
+  getVideoRequestProfile,
 } from './build-video-request'
 
 describe('buildVideoRequest', () => {
@@ -80,6 +82,27 @@ describe('buildVideoRequest', () => {
     })
   })
 
+  test('buildMiniMaxH3VideoRequest matches hailuo_v2 adaptor contract', () => {
+    const req = buildMiniMaxH3VideoRequest({
+      model: 'MiniMax-H3',
+      prompt: 'A city at night',
+      resolution: '768P',
+      duration: 5,
+      ratio: '16:9',
+      aigcWatermark: false,
+    })
+
+    assert.deepEqual(req, {
+      model: 'MiniMax-H3',
+      prompt: 'A city at night',
+      content: [{ type: 'text', text: 'A city at night' }],
+      resolution: '768P',
+      duration: 5,
+      ratio: '16:9',
+      aigc_watermark: false,
+    })
+  })
+
   test('buildGenericVideoRequest matches TaskSubmitReq contract', () => {
     const req = buildGenericVideoRequest({
       model: 'agnes-video-v2.0',
@@ -97,15 +120,25 @@ describe('buildVideoRequest', () => {
   })
 
   test('buildVideoRequest delegates by profile', () => {
-    const req = buildVideoRequest('generic', {
-      model: 'agnes-video-v2.0',
+    const req = buildVideoRequest('minimax_h3', {
+      model: 'MiniMax-H3',
       prompt: 'City night',
-      size: '720P',
+      resolution: '2K',
       duration: 5,
+      ratio: '9:16',
+      aigcWatermark: true,
     })
 
-    assert.equal(req.model, 'agnes-video-v2.0')
-    assert.equal(req.size, '720P')
-    assert.equal(req.duration, 5)
+    assert.equal(req.model, 'MiniMax-H3')
+    assert.equal(req.resolution, '2K')
+    assert.equal(req.ratio, '9:16')
+    assert.equal(req.aigc_watermark, true)
+    assert.deepEqual(req.content, [{ type: 'text', text: 'City night' }])
+  })
+
+  test('getVideoRequestProfile detects MiniMax-H3', () => {
+    assert.equal(getVideoRequestProfile('MiniMax-H3'), 'minimax_h3')
+    assert.equal(getVideoRequestProfile('minimax-h3'), 'minimax_h3')
+    assert.equal(getVideoRequestProfile('happyhorse-1.0-t2v'), 'happyhorse')
   })
 })

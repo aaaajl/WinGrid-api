@@ -30,21 +30,32 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getUserTokens, fetchTokenKey } from '../api'
+import { STORAGE_KEYS_VIDEO } from '../constants'
 import { GenericVideoFields } from './generic-video-fields'
 import { HappyHorseVideoFields } from './happyhorse-video-fields'
+import { MiniMaxH3VideoFields } from './minimax-h3-video-fields'
 import { SeedanceVideoFields } from './seedance-video-fields'
 import {
   buildVideoRequest,
   getDefaultGenericFormState,
   getDefaultHappyHorseFormState,
+  getDefaultMiniMaxH3FormState,
   getDefaultSeedanceFormState,
   isGenericCapabilities,
   isHappyHorseCapabilities,
+  isMiniMaxH3Capabilities,
   isSeedanceCapabilities,
   type GenericFormState,
   type HappyHorseFormState,
+  type MiniMaxH3FormState,
   type SeedanceFormState,
 } from '../lib/video/build-video-request'
+import {
+  loadStoredTokenId,
+  loadVideoDraft,
+  saveStoredTokenId,
+  saveVideoDraft,
+} from '../lib/storage/ui-draft'
 import type {
   VideoGenerationRequest,
   TokenOption,
@@ -55,6 +66,7 @@ import type {
 const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   happyhorse: 'HappyHorse',
   seedance: 'Seedance',
+  minimax_h3: 'MiniMax H3',
   generic: 'Video',
 }
 
@@ -80,18 +92,31 @@ export function VideoInputForm(props: VideoInputFormProps) {
   const videoModels = props.videoModels
   const prompt = props.prompt
   const isSubmitting = props.isSubmitting ?? false
+  const initialDraft = useMemo(() => loadVideoDraft(), [])
 
   const [selectedModelName, setSelectedModelName] = useState(
-    videoModels[0]?.model ?? ''
+    () => initialDraft?.model || videoModels[0]?.model || ''
   )
   const [happyHorseState, setHappyHorseState] = useState<HappyHorseFormState | null>(
-    null
+    () => initialDraft?.happyHorse ?? null
   )
-  const [seedanceState, setSeedanceState] = useState<SeedanceFormState | null>(null)
-  const [genericState, setGenericState] = useState<GenericFormState | null>(null)
+  const [seedanceState, setSeedanceState] = useState<SeedanceFormState | null>(
+    () => initialDraft?.seedance ?? null
+  )
+  const [miniMaxH3State, setMiniMaxH3State] = useState<MiniMaxH3FormState | null>(
+    () => initialDraft?.miniMaxH3 ?? null
+  )
+  const [genericState, setGenericState] = useState<GenericFormState | null>(
+    () => initialDraft?.generic ?? null
+  )
 
   const [tokens, setTokens] = useState<TokenOption[]>([])
-  const [selectedTokenId, setSelectedTokenId] = useState<string>('')
+  const [selectedTokenId, setSelectedTokenId] = useState<string>(
+    () =>
+      initialDraft?.tokenId ||
+      loadStoredTokenId(STORAGE_KEYS_VIDEO.TOKEN_ID) ||
+      ''
+  )
   const [isLoadingTokens, setIsLoadingTokens] = useState(false)
 
   const selectedModel = useMemo(
@@ -109,9 +134,20 @@ export function VideoInputForm(props: VideoInputFormProps) {
     getUserTokens()
       .then((list) => {
         setTokens(list)
-        if (list.length > 0) {
-          setSelectedTokenId(String(list[0].id))
+        if (list.length === 0) {
+          setSelectedTokenId('')
+          return
         }
+        setSelectedTokenId((current) => {
+          if (current && list.some((token) => String(token.id) === current)) {
+            return current
+          }
+          const saved = loadStoredTokenId(STORAGE_KEYS_VIDEO.TOKEN_ID)
+          if (saved && list.some((token) => String(token.id) === saved)) {
+            return saved
+          }
+          return String(list[0].id)
+        })
       })
       .finally(() => setIsLoadingTokens(false))
   }, [])
@@ -127,21 +163,71 @@ export function VideoInputForm(props: VideoInputFormProps) {
   useEffect(() => {
     if (!selectedModel) return
     if (selectedModel.profile === 'happyhorse') {
-      setHappyHorseState(getDefaultHappyHorseFormState(selectedModel))
+      setHappyHorseState((current) =>
+        current?.model === selectedModel.model
+          ? current
+          : getDefaultHappyHorseFormState(selectedModel)
+      )
       setSeedanceState(null)
+      setMiniMaxH3State(null)
       setGenericState(null)
       return
     }
     if (selectedModel.profile === 'seedance') {
-      setSeedanceState(getDefaultSeedanceFormState(selectedModel))
+      setSeedanceState((current) =>
+        current?.model === selectedModel.model
+          ? current
+          : getDefaultSeedanceFormState(selectedModel)
+      )
       setHappyHorseState(null)
+      setMiniMaxH3State(null)
       setGenericState(null)
       return
     }
-    setGenericState(getDefaultGenericFormState(selectedModel))
+    if (selectedModel.profile === 'minimax_h3') {
+      setMiniMaxH3State((current) =>
+        current?.model === selectedModel.model
+          ? current
+          : getDefaultMiniMaxH3FormState(selectedModel)
+      )
+      setHappyHorseState(null)
+      setSeedanceState(null)
+      setGenericState(null)
+      return
+    }
+    setGenericState((current) =>
+      current?.model === selectedModel.model
+        ? current
+        : getDefaultGenericFormState(selectedModel)
+    )
     setHappyHorseState(null)
     setSeedanceState(null)
+    setMiniMaxH3State(null)
   }, [selectedModel])
+
+  useEffect(() => {
+    saveStoredTokenId(STORAGE_KEYS_VIDEO.TOKEN_ID, selectedTokenId)
+  }, [selectedTokenId])
+
+  useEffect(() => {
+    saveVideoDraft({
+      prompt,
+      model: selectedModelName,
+      tokenId: selectedTokenId,
+      happyHorse: happyHorseState,
+      seedance: seedanceState,
+      miniMaxH3: miniMaxH3State,
+      generic: genericState,
+    })
+  }, [
+    prompt,
+    selectedModelName,
+    selectedTokenId,
+    happyHorseState,
+    seedanceState,
+    miniMaxH3State,
+    genericState,
+  ])
 
   const getKeyPlaceholder = () => {
     if (isLoadingTokens) return t('Loading...')
@@ -154,6 +240,8 @@ export function VideoInputForm(props: VideoInputFormProps) {
     hasProfileState = happyHorseState != null
   } else if (selectedModel?.profile === 'seedance') {
     hasProfileState = seedanceState != null
+  } else if (selectedModel?.profile === 'minimax_h3') {
+    hasProfileState = miniMaxH3State != null
   } else if (selectedModel) {
     hasProfileState = genericState != null
   }
@@ -177,11 +265,17 @@ export function VideoInputForm(props: VideoInputFormProps) {
     if (!realKey) return
 
     const profile = selectedModel.profile
-    let formState: HappyHorseFormState | SeedanceFormState | GenericFormState
+    let formState:
+      | HappyHorseFormState
+      | SeedanceFormState
+      | MiniMaxH3FormState
+      | GenericFormState
     if (profile === 'happyhorse') {
       formState = { ...(happyHorseState as HappyHorseFormState), prompt }
     } else if (profile === 'seedance') {
       formState = { ...(seedanceState as SeedanceFormState), prompt }
+    } else if (profile === 'minimax_h3') {
+      formState = { ...(miniMaxH3State as MiniMaxH3FormState), prompt }
     } else {
       formState = { ...(genericState as GenericFormState), prompt }
     }
@@ -193,7 +287,9 @@ export function VideoInputForm(props: VideoInputFormProps) {
       profile,
       ...('size' in formState && formState.size
         ? { size: formState.size }
-        : {}),
+        : profile === 'minimax_h3' && 'resolution' in formState
+          ? { size: formState.resolution }
+          : {}),
     }
 
     await props.onSubmit(req, realKey, selectedToken.id, meta)
@@ -315,6 +411,20 @@ export function VideoInputForm(props: VideoInputFormProps) {
             state={seedanceState}
             onChange={(patch) =>
               setSeedanceState((current) =>
+                current ? { ...current, ...patch } : current
+              )
+            }
+          />
+        )}
+
+      {selectedModel?.profile === 'minimax_h3' &&
+        miniMaxH3State &&
+        isMiniMaxH3Capabilities(selectedModel.capabilities) && (
+          <MiniMaxH3VideoFields
+            capabilities={selectedModel.capabilities}
+            state={miniMaxH3State}
+            onChange={(patch) =>
+              setMiniMaxH3State((current) =>
                 current ? { ...current, ...patch } : current
               )
             }

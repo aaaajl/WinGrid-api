@@ -65,8 +65,9 @@ export function useImageGeneration() {
     loadHistoryFromStorage()
   )
   const [previewItem, setPreviewItem] = useState<ImageHistoryItem | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const isSubmitting = pendingCount > 0
 
   useEffect(() => {
     saveHistoryToStorage(history)
@@ -78,7 +79,7 @@ export function useImageGeneration() {
       apiKey: string,
       meta?: { profile?: ImageRequestProfile }
     ) => {
-      setIsSubmitting(true)
+      setPendingCount((count) => count + 1)
       setSubmitError(null)
       try {
         const res = await submitImageGeneration(req, apiKey)
@@ -117,7 +118,7 @@ export function useImageGeneration() {
         setSubmitError(msg)
         throw err
       } finally {
-        setIsSubmitting(false)
+        setPendingCount((count) => Math.max(0, count - 1))
       }
     },
     []

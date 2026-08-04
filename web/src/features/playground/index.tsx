@@ -39,9 +39,48 @@ import {
   usePlaygroundVideoModels,
   useVideoTask,
 } from './hooks'
+import {
+  loadActiveTab,
+  loadVideoDraft,
+  loadVideoPreviewTaskId,
+  saveActiveTab,
+  saveVideoDraft,
+  saveVideoPreviewTaskId,
+  type PlaygroundTab,
+} from './lib/storage/ui-draft'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { VideoTaskItem, VideoRequestProfile } from './types'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import type {
+  ImageGenerationRequest,
+  ImageRequestProfile,
+  VideoGenerationRequest,
+  VideoRequestProfile,
+  VideoTaskItem,
+} from './types'
+
+type PendingSubmit =
+  | {
+      kind: 'video'
+      req: VideoGenerationRequest
+      apiKey: string
+      tokenId: number
+      meta?: {
+        size?: string
+        duration?: number
+        profile?: VideoRequestProfile
+      }
+    }
+  | {
+      kind: 'image'
+      req: ImageGenerationRequest
+      apiKey: string
+      meta?: { profile?: ImageRequestProfile }
+    }
+
+function resolveInitialTab(): PlaygroundTab {
+  return loadActiveTab() ?? 'image'
+}
 
 export function Playground() {
   const { t } = useTranslation()
@@ -82,7 +121,11 @@ export function Playground() {
 
   const { tasks, isSubmitting, submitError, submitTask, clearFinishedTasks, removeTask } =
     useVideoTask()
-  const [previewTask, setPreviewTask] = useState<VideoTaskItem | null>(null)
+  const [previewTask, setPreviewTask] = useState<VideoTaskItem | null>(() => {
+    const previewId = loadVideoPreviewTaskId()
+    if (!previewId) return null
+    return tasks.find((task) => task.id === previewId) ?? null
+  })
   const autoPreviewedRef = useRef<Set<string> | null>(null)
 
   const {
@@ -97,7 +140,47 @@ export function Playground() {
   } = useImageGeneration()
   const [reusePrompt, setReusePrompt] = useState<string | null>(null)
   const [reusePromptNonce, setReusePromptNonce] = useState(0)
-  const [videoPrompt, setVideoPrompt] = useState('')
+  const [videoPrompt, setVideoPrompt] = useState(
+    () => loadVideoDraft()?.prompt ?? ''
+  )
+
+  const { videoModels, isLoadingVideoModels } = usePlaygroundVideoModels()
+  const { imageModels } = usePlaygroundImageModels()
+  const hasVideoModels = videoModels.length > 0
+  const [activeTab, setActiveTab] = useState<PlaygroundTab>(resolveInitialTab)
+  const [pendingSubmit, setPendingSubmit] = useState<PendingSubmit | null>(null)
+
+  const hasPendingVideoTasks = tasks.some(
+    (task) => task.status === 'queued' || task.status === 'in_progress'
+  )
+
+  useEffect(() => {
+    if (isLoadingVideoModels) return
+    if (activeTab === 'video' && !hasVideoModels) {
+      setActiveTab('image')
+    }
+  }, [activeTab, hasVideoModels, isLoadingVideoModels])
+
+  useEffect(() => {
+    saveActiveTab(activeTab)
+  }, [activeTab])
+
+  useEffect(() => {
+    saveVideoPreviewTaskId(previewTask?.id ?? null)
+  }, [previewTask])
+
+  useEffect(() => {
+    const draft = loadVideoDraft()
+    saveVideoDraft({
+      prompt: videoPrompt,
+      model: draft?.model ?? '',
+      tokenId: draft?.tokenId ?? '',
+      happyHorse: draft?.happyHorse ?? null,
+      seedance: draft?.seedance ?? null,
+      miniMaxH3: draft?.miniMaxH3 ?? null,
+      generic: draft?.generic ?? null,
+    })
+  }, [videoPrompt])
 
   useEffect(() => {
     if (autoPreviewedRef.current === null) {
@@ -150,15 +233,15 @@ export function Playground() {
     updateConfig,
   })
 
-  const { videoModels } = usePlaygroundVideoModels()
-  const { imageModels } = usePlaygroundImageModels()
-  const hasVideoModels = videoModels.length > 0
-
-  const handleVideoSubmit = async (
-    req: Parameters<typeof submitTask>[0],
+  const runVideoSubmit = async (
+    req: VideoGenerationRequest,
     apiKey: string,
     tokenId: number,
-    meta?: { size?: string; duration?: number; profile?: VideoRequestProfile }
+    meta?: {
+      size?: string
+      duration?: number
+      profile?: VideoRequestProfile
+    }
   ) => {
     try {
       await submitTask(req, apiKey, tokenId, meta)
@@ -169,10 +252,10 @@ export function Playground() {
     }
   }
 
-  const handleImageSubmit = async (
-    req: Parameters<typeof generateImage>[0],
+  const runImageSubmit = async (
+    req: ImageGenerationRequest,
     apiKey: string,
-    meta?: Parameters<typeof generateImage>[2]
+    meta?: { profile?: ImageRequestProfile }
   ) => {
     try {
       await generateImage(req, apiKey, meta)
@@ -182,6 +265,51 @@ export function Playground() {
         err instanceof Error ? err.message : t('Failed to generate image')
       )
     }
+  }
+
+  const handleVideoSubmit = async (
+    req: VideoGenerationRequest,
+    apiKey: string,
+    tokenId: number,
+    meta?: {
+      size?: string
+      duration?: number
+      profile?: VideoRequestProfile
+    }
+  ) => {
+    if (hasPendingVideoTasks) {
+      setPendingSubmit({ kind: 'video', req, apiKey, tokenId, meta })
+      return
+    }
+    await runVideoSubmit(req, apiKey, tokenId, meta)
+  }
+
+  const handleImageSubmit = async (
+    req: ImageGenerationRequest,
+    apiKey: string,
+    meta?: { profile?: ImageRequestProfile }
+  ) => {
+    if (isImageSubmitting) {
+      setPendingSubmit({ kind: 'image', req, apiKey, meta })
+      return
+    }
+    await runImageSubmit(req, apiKey, meta)
+  }
+
+  const handleConfirmPendingSubmit = () => {
+    const pending = pendingSubmit
+    setPendingSubmit(null)
+    if (!pending) return
+    if (pending.kind === 'video') {
+      void runVideoSubmit(
+        pending.req,
+        pending.apiKey,
+        pending.tokenId,
+        pending.meta
+      )
+      return
+    }
+    void runImageSubmit(pending.req, pending.apiKey, pending.meta)
   }
 
   const chatPanel = (
@@ -230,7 +358,12 @@ export function Playground() {
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
       <Tabs
         className='flex size-full min-h-0 flex-col overflow-hidden'
-        defaultValue='image'
+        value={activeTab}
+        onValueChange={(value) => {
+          if (value === 'chat' || value === 'image' || value === 'video') {
+            setActiveTab(value)
+          }
+        }}
       >
         <div className='flex shrink-0 justify-center border-b px-4 pt-2'>
           <TabsList>
@@ -368,6 +501,25 @@ export function Playground() {
           </TabsContent>
         )}
       </Tabs>
+
+      <ConfirmDialog
+        open={pendingSubmit != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingSubmit(null)
+        }}
+        title={t('Generation still in progress')}
+        desc={
+          pendingSubmit?.kind === 'image'
+            ? t(
+                'An image is still being generated. Submit another request anyway?'
+              )
+            : t(
+                'You have unfinished video tasks. Submit another request anyway?'
+              )
+        }
+        confirmText={t('Submit anyway')}
+        handleConfirm={handleConfirmPendingSubmit}
+      />
     </div>
   )
 }

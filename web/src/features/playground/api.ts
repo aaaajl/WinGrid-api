@@ -106,6 +106,7 @@ export async function getPlaygroundVideoModels(): Promise<
         !!item.model &&
         (item.profile === 'happyhorse' ||
           item.profile === 'seedance' ||
+          item.profile === 'minimax_h3' ||
           item.profile === 'generic')
     ) as PlaygroundVideoModel[]
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -73,6 +74,8 @@ func setupPlaygroundVideoTestDB(t *testing.T) *gorm.DB {
 func TestVideoRequestProfile(t *testing.T) {
 	assert.Equal(t, VideoProfileHappyHorse, VideoRequestProfile("happyhorse-1.0-t2v"))
 	assert.Equal(t, VideoProfileSeedance, VideoRequestProfile("doubao-seedance-1-0-lite-t2v"))
+	assert.Equal(t, VideoProfileMiniMaxH3, VideoRequestProfile("MiniMax-H3"))
+	assert.Equal(t, VideoProfileMiniMaxH3, VideoRequestProfile("minimax-h3"))
 	assert.Equal(t, VideoProfileGeneric, VideoRequestProfile("agnes-video-v2.0"))
 	assert.Equal(t, VideoProfileGeneric, VideoRequestProfile("kling-v1"))
 }
@@ -97,6 +100,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		{Group: "default", Model: "happyhorse-no-catalog", ChannelId: 4, Enabled: true},
 		{Group: "default", Model: "happyhorse-disabled", ChannelId: 5, Enabled: true},
 		{Group: "default", Model: "custom-t2v-model", ChannelId: 6, Enabled: true},
+		{Group: "default", Model: "MiniMax-H3", ChannelId: 7, Enabled: true},
 	}).Error)
 
 	now := common.GetTimestamp()
@@ -106,6 +110,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		{ModelName: "kling-v1", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 		{ModelName: "happyhorse-disabled", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 		{ModelName: "custom-t2v-model", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
+		{ModelName: "MiniMax-H3", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 	}).Error)
 	require.NoError(t, db.Model(&model.Model{}).
 		Where("model_name = ?", "happyhorse-disabled").
@@ -113,7 +118,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 
 	models, err := ListPlaygroundVideoModels("default")
 	require.NoError(t, err)
-	require.Len(t, models, 4)
+	require.Len(t, models, 5)
 
 	names := make([]string, 0, len(models))
 	for _, item := range models {
@@ -124,6 +129,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		"doubao-seedance-1-0-lite-t2v",
 		"kling-v1",
 		"custom-t2v-model",
+		"MiniMax-H3",
 	}, names)
 
 	for _, item := range models {
@@ -132,6 +138,13 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 			assert.Equal(t, VideoProfileHappyHorse, item.Profile)
 		case "doubao-seedance-1-0-lite-t2v":
 			assert.Equal(t, VideoProfileSeedance, item.Profile)
+		case "MiniMax-H3":
+			assert.Equal(t, VideoProfileMiniMaxH3, item.Profile)
+			caps, ok := item.Capabilities.(dto.MiniMaxH3VideoCapabilities)
+			require.True(t, ok)
+			assert.Equal(t, "minimax_h3", caps.Form)
+			assert.Equal(t, []string{"768P", "2K"}, caps.SupportedResolutions)
+			assert.Equal(t, [2]int{4, 15}, caps.DurationRange)
 		case "kling-v1", "custom-t2v-model":
 			assert.Equal(t, VideoProfileGeneric, item.Profile)
 		default:

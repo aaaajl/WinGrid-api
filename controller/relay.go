@@ -612,7 +612,10 @@ func RelayTask(c *gin.Context) {
 			ModelRatio:      relayInfo.PriceData.ModelRatio,
 			OtherRatios:     relayInfo.PriceData.OtherRatios(),
 			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  !result.AdjustBillingOnComplete && (common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice),
+			// per_duration locks the submit-time charge; completion adaptors must not
+			// re-multiply the stored total costUSD by duration.
+			PerCallBilling: relayInfo.DurationBilling != nil ||
+				(!result.AdjustBillingOnComplete && (common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice)),
 		}
 		if db := relayInfo.DurationBilling; db != nil {
 			task.PrivateData.BillingContext.BillingMode = billing_setting.BillingModePerDuration

@@ -14,14 +14,14 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	taskdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,6 +34,8 @@ const (
 	minVideoDuration         = 4
 	maxVideoDuration         = 15
 	maxReferenceInputSeconds = 15
+	// Native MiniMax request; task_request holds TaskSubmitReq for shared billing helpers.
+	contextKeyVideoRequest = "minimax_h3_video_request"
 )
 
 type TaskAdaptor struct {
@@ -47,7 +49,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.baseURL = normalizeBaseURL(info.ChannelBaseUrl)
 }
 
-func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
 	var req VideoRequest
 	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
@@ -58,8 +60,26 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 	req.Model = info.UpstreamModelName
 	info.Action = constant.TaskActionGenerate
-	c.Set("task_request", req)
+	c.Set(contextKeyVideoRequest, req)
+	// per_duration / shared helpers read TaskSubmitReq from task_request.
+	c.Set("task_request", relaycommon.TaskSubmitReq{
+		Model:    req.Model,
+		Duration: req.Duration,
+		Size:     req.Resolution,
+	})
 	return nil
+}
+
+func videoRequestFromContext(c *gin.Context) (VideoRequest, error) {
+	value, ok := c.Get(contextKeyVideoRequest)
+	if !ok {
+		return VideoRequest{}, fmt.Errorf("request not found in context")
+	}
+	req, ok := value.(VideoRequest)
+	if !ok {
+		return VideoRequest{}, fmt.Errorf("invalid request type in context")
+	}
+	return req, nil
 }
 
 func validateVideoRequest(req *VideoRequest) (string, error) {
@@ -67,8 +87,8 @@ func validateVideoRequest(req *VideoRequest) (string, error) {
 	if req.Duration < minVideoDuration || req.Duration > maxAllowedDuration {
 		return "invalid_duration", fmt.Errorf("duration must be between %d and %d", minVideoDuration, maxAllowedDuration)
 	}
-	if req.Resolution != "2K" {
-		return "invalid_resolution", fmt.Errorf("resolution must be 2K")
+	if req.Resolution != "768P" && req.Resolution != "2K" {
+		return "invalid_resolution", fmt.Errorf("resolution must be 768P or 2K")
 	}
 	if req.CallbackURL != nil {
 		return "unsupported_callback_url", fmt.Errorf("callback_url is not supported")
@@ -178,13 +198,9 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo) (io.Reader, error) {
-	value, ok := c.Get("task_request")
-	if !ok {
-		return nil, fmt.Errorf("request not found in context")
-	}
-	req, ok := value.(VideoRequest)
-	if !ok {
-		return nil, fmt.Errorf("invalid request type in context")
+	req, err := videoRequestFromContext(c)
+	if err != nil {
+		return nil, err
 	}
 	data, err := common.Marshal(req)
 	if err != nil {
@@ -197,7 +213,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (string, []byte, *taskdto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (string, []byte, *dto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
@@ -300,12 +316,8 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
-	value, ok := c.Get("task_request")
-	if !ok {
-		return nil
-	}
-	req, ok := value.(VideoRequest)
-	if !ok || info.PriceData.ModelPrice <= 0 {
+	req, err := videoRequestFromContext(c)
+	if err != nil || info.PriceData.ModelPrice <= 0 {
 		return nil
 	}
 
@@ -345,10 +357,17 @@ func (a *TaskAdaptor) AdjustBillingOnCompleteChecked(task *model.Task, _ *relayc
 	}
 
 	billing := task.PrivateData.BillingContext
-	if billing.ModelPrice <= 0 || billing.GroupRatio <= 0 {
+	// per_duration stores total costUSD in ModelPrice; settle must use $/sec BasePrice.
+	unitPrice := billing.ModelPrice
+	if billing.BillingMode == billing_setting.BillingModePerDuration {
+		if billing.BasePrice <= 0 || billing.GroupRatio <= 0 {
+			return 0, nil
+		}
+		unitPrice = billing.BasePrice
+	} else if billing.ModelPrice <= 0 || billing.GroupRatio <= 0 {
 		return 0, nil
 	}
-	cost := billing.ModelPrice * float64(response.Task.Usage.TotalSeconds)
+	cost := unitPrice * float64(response.Task.Usage.TotalSeconds)
 	if response.Task.Usage.InputImageCount > freeInputImages {
 		cost += extraImagePrice * float64(response.Task.Usage.InputImageCount-freeInputImages)
 	}

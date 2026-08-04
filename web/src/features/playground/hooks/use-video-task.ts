@@ -85,7 +85,11 @@ export function useVideoTask() {
         inFlight = true
         try {
           const res = await fetchVideoTaskStatus(id, apiKey)
-          const status = res.status
+          // Keep tasks visible while backend is still on NOT_START / unknown.
+          const status =
+            res.status === 'unknown' || !res.status
+              ? 'queued'
+              : res.status
           const videoUrl =
             status === 'completed'
               ? (res.metadata?.url as string | undefined)
@@ -183,7 +187,7 @@ export function useVideoTask() {
         const newTask: VideoTaskItem = {
           id: taskId,
           model: req.model,
-          prompt: req.prompt,
+          prompt: req.prompt ?? '',
           status: res.status ?? 'queued',
           progress: res.progress ?? 0,
           createdAt: res.created_at ?? Math.floor(Date.now() / 1000),

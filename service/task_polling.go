@@ -442,6 +442,23 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	return nil
 }
 
+// resolveTaskPollingKey returns the API key to use when polling a task.
+// Prefer the key stored at submit time; for multi-key channels without a stored key,
+// fall back to the first non-empty key so Authorization headers stay valid.
+func resolveTaskPollingKey(ch *model.Channel, task *model.Task) string {
+	if key := strings.TrimSpace(task.PrivateData.Key); key != "" {
+		return key
+	}
+	if ch.ChannelInfo.IsMultiKey || strings.Contains(ch.Key, "\n") {
+		for _, k := range ch.GetKeys() {
+			if trimmed := strings.TrimSpace(k); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return ch.Key
+}
+
 func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *model.Channel, taskId string, taskM map[string]*model.Task) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -457,12 +474,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
-	key := ch.Key
-
-	privateData := task.PrivateData
-	if privateData.Key != "" {
-		key = privateData.Key
-	}
+	key := resolveTaskPollingKey(ch, task)
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,

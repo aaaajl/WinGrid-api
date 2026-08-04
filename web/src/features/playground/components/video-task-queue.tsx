@@ -38,6 +38,7 @@ import type {
 const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   happyhorse: 'HappyHorse',
   seedance: 'Seedance',
+  minimax_h3: 'MiniMax H3',
   generic: 'Video',
 }
 

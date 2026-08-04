@@ -27,3 +27,11 @@ type GenericVideoCapabilities struct {
 	Fields         []string `json:"fields"`
 	Form           string   `json:"form"`
 }
+
+type MiniMaxH3VideoCapabilities struct {
+	SupportedResolutions []string `json:"supported_resolutions"`
+	SupportedRatios      []string `json:"supported_ratios"`
+	DurationRange        [2]int   `json:"duration_range"`
+	Fields               []string `json:"fields"`
+	Form                 string   `json:"form"`
+}

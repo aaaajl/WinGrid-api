@@ -81,7 +81,7 @@ func TestTaskAdaptorReservesWorstCaseReferenceInputCost(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		content = append(content, ContentItem{Type: "image_url", ImageURL: &URLValue{URL: "https://example.com/ref.png"}, Role: common.GetPointer("reference_image")})
 	}
-	c.Set("task_request", VideoRequest{Model: ModelName, Content: content, Resolution: "2K", Duration: 5, Ratio: common.GetPointer("adaptive")})
+	c.Set(contextKeyVideoRequest, VideoRequest{Model: ModelName, Content: content, Resolution: "2K", Duration: 5, Ratio: common.GetPointer("adaptive")})
 	info.PriceData.ModelPrice = 0.13
 
 	ratios := (&TaskAdaptor{}).EstimateBilling(c, info)
@@ -101,6 +101,27 @@ func TestTaskAdaptorSettlesFromUpstreamUsage(t *testing.T) {
 	quota, clamp := (&TaskAdaptor{}).AdjustBillingOnCompleteChecked(task, &relaycommon.TaskInfo{})
 
 	require.Equal(t, 1600000, quota)
+	require.Nil(t, clamp)
+}
+
+func TestTaskAdaptorSettlesPerDurationUsingBasePrice(t *testing.T) {
+	// ModelPrice is total costUSD (base_price * requested duration); settle must
+	// use BasePrice × upstream seconds, otherwise users are overcharged by duration.
+	task := &model.Task{
+		Data: []byte(`{"task":{"usage":{"total_seconds":4,"input_image_count":0}}}`),
+		PrivateData: model.TaskPrivateData{BillingContext: &model.TaskBillingContext{
+			ModelPrice:  0.296,
+			GroupRatio:  1,
+			BillingMode: "per_duration",
+			Size:        "768P",
+			Duration:    4,
+			BasePrice:   0.074,
+		}},
+	}
+
+	quota, clamp := (&TaskAdaptor{}).AdjustBillingOnCompleteChecked(task, &relaycommon.TaskInfo{})
+
+	require.Equal(t, 148000, quota)
 	require.Nil(t, clamp)
 }
 
@@ -140,6 +161,12 @@ func TestTaskAdaptorBuildsMiniMaxH3CreateRequest(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 	adaptor.Init(info)
 	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+
+	billingReq, err := relaycommon.GetTaskRequest(c)
+	require.NoError(t, err)
+	require.Equal(t, "2K", billingReq.Size)
+	require.Equal(t, 5, billingReq.Duration)
+
 	requestURL, err := adaptor.BuildRequestURL(info)
 	require.NoError(t, err)
 	require.Equal(t, "https://api.minimaxi.com/v2/video_generation", requestURL)
@@ -169,6 +196,11 @@ func TestTaskAdaptorRejectsInvalidMiniMaxH3Content(t *testing.T) {
 			name: "duration is bounded before billing",
 			body: `{"model":"MiniMax-H3","content":[{"type":"text","text":"prompt"}],"resolution":"2K","duration":16,"ratio":"16:9"}`,
 			code: "invalid_duration",
+		},
+		{
+			name: "resolution must be 768P or 2K",
+			body: `{"model":"MiniMax-H3","content":[{"type":"text","text":"prompt"}],"resolution":"1080P","duration":5,"ratio":"16:9"}`,
+			code: "invalid_resolution",
 		},
 		{
 			name: "text generation requires explicit ratio",

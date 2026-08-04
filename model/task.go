@@ -17,7 +17,7 @@ type TaskStatus string
 func (t TaskStatus) ToVideoStatus() string {
 	var status string
 	switch t {
-	case TaskStatusQueued, TaskStatusSubmitted:
+	case TaskStatusNotStart, TaskStatusQueued, TaskStatusSubmitted:
 		status = dto.VideoStatusQueued
 	case TaskStatusInProgress:
 		status = dto.VideoStatusInProgress
@@ -183,8 +183,13 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	properties := Properties{}
 	privateData := TaskPrivateData{}
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
-		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
-			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi {
+		// Persist the key actually used for this submission when:
+		// - multi-key channel: polling must reuse the selected key, not the full newline-joined blob
+		// - Gemini/Vertex: credentials may be JSON and must not go through ch.Key splitting
+		if relayInfo.ChannelMeta.ApiKey != "" &&
+			(relayInfo.ChannelMeta.ChannelIsMultiKey ||
+				relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
+				relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi) {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
 		if relayInfo.UpstreamModelName != "" {

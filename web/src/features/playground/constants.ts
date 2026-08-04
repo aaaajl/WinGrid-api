@@ -72,6 +72,7 @@ export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
+  ACTIVE_TAB: 'playground_active_tab',
 } as const
 
 // Error messages
@@ -122,6 +123,8 @@ export const VIDEO_POLLING_INTERVAL = 5000
 export const STORAGE_KEYS_VIDEO = {
   TASK_QUEUE: 'playground_video_tasks',
   TOKEN_ID: 'playground_video_token_id',
+  DRAFT: 'playground_video_draft',
+  PREVIEW_TASK_ID: 'playground_video_preview_task_id',
 } as const
 
 // ========== Image generation constants ==========
@@ -133,6 +136,7 @@ export const IMAGE_API_ENDPOINTS = {
 export const STORAGE_KEYS_IMAGE = {
   HISTORY: 'playground_image_history',
   TOKEN_ID: 'playground_image_token_id',
+  DRAFT: 'playground_image_draft',
 } as const
 
 export const IMAGE_HISTORY_MAX = 20

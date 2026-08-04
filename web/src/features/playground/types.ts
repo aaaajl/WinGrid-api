@@ -162,17 +162,32 @@ export interface TokenOption {
 
 export interface VideoGenerationRequest {
   model: string
-  prompt: string
+  /** Kept for task queue display; MiniMax-H3 adaptor ignores unknown fields. */
+  prompt?: string
   size?: string
   /** HappyHorse / DashScope-style resolution (alias of size on the gateway). */
   resolution?: string
   duration?: number
+  ratio?: string
+  aigc_watermark?: boolean
+  content?: Array<{
+    type: 'text' | 'image_url' | 'video_url' | 'audio_url'
+    text?: string
+    image_url?: { url: string }
+    video_url?: { url: string }
+    audio_url?: { url: string }
+    role?: string
+  }>
   images?: string[]
   input_reference?: string
   metadata?: Record<string, unknown>
 }
 
-export type VideoRequestProfile = 'happyhorse' | 'seedance' | 'generic'
+export type VideoRequestProfile =
+  | 'happyhorse'
+  | 'seedance'
+  | 'minimax_h3'
+  | 'generic'
 
 export interface HappyHorseCapabilities {
   supported_sizes: string[]
@@ -185,6 +200,14 @@ export interface SeedanceCapabilities {
   supported_ratios: string[]
   duration_range: [number, number]
   fields: string[]
+}
+
+export interface MiniMaxH3Capabilities {
+  supported_resolutions: string[]
+  supported_ratios: string[]
+  duration_range: [number, number]
+  fields: string[]
+  form: 'minimax_h3'
 }
 
 export interface GenericCapabilities {
@@ -202,6 +225,7 @@ export interface PlaygroundVideoModel {
   capabilities:
     | HappyHorseCapabilities
     | SeedanceCapabilities
+    | MiniMaxH3Capabilities
     | GenericCapabilities
 }
 
