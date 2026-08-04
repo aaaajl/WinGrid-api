@@ -20,12 +20,14 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
 import {
+  buildAgnesVideoRequest,
   buildGenericVideoRequest,
   buildHappyHorseVideoRequest,
   buildMiniMaxH3VideoRequest,
   buildSeedanceVideoRequest,
   buildVideoRequest,
   getVideoRequestProfile,
+  resolveAgnesVideoSize,
 } from './build-video-request'
 
 describe('buildVideoRequest', () => {
@@ -105,18 +107,53 @@ describe('buildVideoRequest', () => {
 
   test('buildGenericVideoRequest matches TaskSubmitReq contract', () => {
     const req = buildGenericVideoRequest({
-      model: 'agnes-video-v2.0',
+      model: 'kling-v1',
       prompt: 'A bird flying',
       size: '1080P',
       duration: 6,
     })
 
     assert.deepEqual(req, {
-      model: 'agnes-video-v2.0',
+      model: 'kling-v1',
       prompt: 'A bird flying',
       size: '1080P',
       duration: 6,
     })
+  })
+
+  test('buildAgnesVideoRequest matches agensvideo adaptor contract', () => {
+    const req = buildAgnesVideoRequest({
+      model: 'agnes-video-v2.0',
+      prompt: 'A bird flying',
+      size: '720P',
+      ratio: '16:9',
+      duration: 5,
+      frameRate: 24,
+      numFrames: 121,
+      seed: 7,
+      negativePrompt: 'blurry',
+      image: 'https://example.com/ref.png',
+    })
+
+    assert.deepEqual(req, {
+      model: 'agnes-video-v2.0',
+      prompt: 'A bird flying',
+      size: '1280x720',
+      duration: 5,
+      image: 'https://example.com/ref.png',
+      metadata: {
+        frame_rate: 24,
+        num_frames: 121,
+        seed: 7,
+        negative_prompt: 'blurry',
+        image: 'https://example.com/ref.png',
+      },
+    })
+  })
+
+  test('resolveAgnesVideoSize maps presets by ratio', () => {
+    assert.equal(resolveAgnesVideoSize('1080P', '9:16'), '1080x1920')
+    assert.equal(resolveAgnesVideoSize('480P', '1:1'), '512x512')
   })
 
   test('buildVideoRequest delegates by profile', () => {
@@ -136,9 +173,10 @@ describe('buildVideoRequest', () => {
     assert.deepEqual(req.content, [{ type: 'text', text: 'City night' }])
   })
 
-  test('getVideoRequestProfile detects MiniMax-H3', () => {
+  test('getVideoRequestProfile detects vendor prefixes', () => {
     assert.equal(getVideoRequestProfile('MiniMax-H3'), 'minimax_h3')
     assert.equal(getVideoRequestProfile('minimax-h3'), 'minimax_h3')
     assert.equal(getVideoRequestProfile('happyhorse-1.0-t2v'), 'happyhorse')
+    assert.equal(getVideoRequestProfile('agnes-video-v2.0'), 'agnes_video')
   })
 })

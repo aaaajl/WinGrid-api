@@ -1,10 +1,12 @@
 # 详细设计：Agnes Video 专用渠道类型（ChannelTypeAgnesVideo）
 
-> 状态：方案评审（未实现）  
+> 状态：M1–M4 已落地（M3 切流见 `docs/migrate-agnes-video-m3.sql`；现网渠道 `#30 Agnes Video CN` type=62）  
 > 日期：2026-08-04  
 > 官方文档：[Agnes Video V2.0](https://www.agnes-ai.cn/zh-Hans/docs/agnes-video-v20)  
 > 触发问题：Playground 中 `agnes-video-v2.0` 任务成功但无法预览（缺少 `metadata.url`）  
 > 命名说明：官方品牌为 **Agnes**；现网渠道名存在 `AgensCN` / `AgensGlobal` 拼写。本设计常量统一为 `AgnesVideo`，展示名可用 `Agnes Video`。
+>
+> 实现摘要：`ChannelTypeAgnesVideo=62`、`relay/channel/task/agensvideo`、通用 `UpstreamVideoID` 提取与轮询透传；VideoProxy 走 default CDN 分支；存量 OpenAI+Sora 路径不变。
 
 ---
 
@@ -14,7 +16,7 @@
 
 当前 `agnes-video-v2.0` 挂在 **OpenAI（type=1）** 上，走 **Sora task adaptor**。创建任务勉强能通，但轮询 / 结果 URL / 视频代理语义与 [Agnes 官方异步 API](https://www.agnes-ai.cn/zh-Hans/docs/agnes-video-v20) 不对齐，直接导致 Playground 预览失败，并埋下 multi-key、内容代理等后续风险。
 
-新增专用 `ChannelTypeAgnesVideo`（建议 ID=`60`）是与现有 HappyHorse / DoubaoVideo / Kling 等「视频任务型渠道」同一成熟模式，改造边界清晰、可灰度迁移、不破坏对外 `/v1/videos` 契约。
+新增专用 `ChannelTypeAgnesVideo`（建议 ID=`62`）是与现有 HappyHorse / DoubaoVideo / Kling 等「视频任务型渠道」同一成熟模式，改造边界清晰、可灰度迁移、不破坏对外 `/v1/videos` 契约。
 
 | 维度 | 评估 |
 |------|------|
@@ -86,7 +88,7 @@ Client / Playground
 
 ### 2.1 目标
 
-1. 新增渠道类型 **`ChannelTypeAgnesVideo = 60`**，默认 BaseURL `https://api.agnes-ai.cn`（全球站可配 `https://apihub.agnes-ai.com`）。
+1. 新增渠道类型 **`ChannelTypeAgnesVideo = 62`**，默认 BaseURL `https://api.agnes-ai.cn`（全球站可配 `https://apihub.agnes-ai.com`）。
 2. 专用 TaskAdaptor：正确创建、轮询（优先 `video_id`）、解析 CDN URL、对外 status 注入 `metadata.url`。
 3. Playground / 用量日志可预览成功视频（直链优先；同源 proxy 作回退）。
 4. 对外 API 仍为 OpenAI-compatible：`POST/GET /v1/videos`、`GET /v1/videos/:id/content`。
@@ -115,7 +117,7 @@ Client / Playground
                      middleware.Distribute
                               │
                               ▼
-              platform = "60" (ChannelTypeAgnesVideo)
+              platform = "62" (ChannelTypeAgnesVideo)
                               │
                               ▼
                    agensvideo.TaskAdaptor
@@ -130,7 +132,7 @@ Client / Playground
          └────────────────────┴────────────────────┘
                               │
                               ▼
-                    model.Task (platform=60)
+                    model.Task (platform=62)
                     PrivateData.UpstreamTaskID
                     PrivateData.ResultURL = CDN
                               │
@@ -143,7 +145,7 @@ Client / Playground
 
 | 层 | 路径 | 职责 |
 |----|------|------|
-| Constant | `constant/channel.go` | type=60、BaseURL、Names |
+| Constant | `constant/channel.go` | type=62、BaseURL、Names |
 | Task adaptor | `relay/channel/task/agensvideo/` | 协议适配 |
 | Registry | `relay/relay_adaptor.go` | `GetTaskAdaptor` case |
 | Polling | `service/task_polling.go` | 通用视频轮询（无需改流程，靠 adaptor） |
@@ -170,8 +172,8 @@ Playground `generic` 当前发：`model` / `prompt` / `size` / `duration` 等。
 |----------|----------|
 | `model` | `UpstreamModelName`（如 `agnes-video-v2.0`） |
 | `prompt` | 必填 |
-| `image` | 可选；图生视频 |
-| `mode` | 可选；`ti2vid` / `keyframes` |
+| `image` | 图生视频 |
+| `mode` | `ti2vid` / `keyframes` |
 | `width` / `height` | 由 `size`（如 `1152x768` / `720P`）解析或透传 |
 | `num_frames` / `frame_rate` | 由 `seconds`/`duration` 推导，或 metadata 透传；须满足 `≤441` 且 `8n+1` |
 | `seed` / `negative_prompt` / `num_inference_steps` | metadata / Extra 透传 |
@@ -346,8 +348,8 @@ CDN 直链场景可不做。
 
 ### 8.2 步骤
 
-1. **发版**：注册 type=60 + adaptor（旧 type=1 行为不变）。  
-2. **新建** type=60 渠道（或克隆 #28），BaseURL=`https://api.agnes-ai.cn`，挂载 `agnes-video-v2.0`，multi-key 与现网一致。  
+1. **发版**：注册 type=62 + adaptor（旧 type=1 行为不变）。  
+2. **新建** type=62 渠道（或克隆 #28），BaseURL=`https://api.agnes-ai.cn`，挂载 `agnes-video-v2.0`，multi-key 与现网一致。  
 3. **Ability**：将 `agnes-video-v2.0` 的 group 路由切到新渠道（或提高新渠道 priority）。  
 4. **验证**：创建 → 轮询 → Playground 预览 → `/content` 代理 → 计费日志。  
 5. **下线**：从 OpenAI 渠道 models 中移除 `agnes-video-*`，避免误路由。  
@@ -355,7 +357,7 @@ CDN 直链场景可不做。
 
 ### 8.3 回滚
 
-- Ability 切回 type=1 渠道即可；type=60 代码可保留。  
+- Ability 切回 type=1 渠道即可；type=62 代码可保留。  
 
 ---
 
@@ -365,7 +367,7 @@ CDN 直链场景可不做。
 
 | 文件 | 变更 |
 |------|------|
-| `constant/channel.go` | `ChannelTypeAgnesVideo=60`，BaseURLs，Names；Dummy 仍最后 |
+| `constant/channel.go` | `ChannelTypeAgnesVideo=62`，BaseURLs，Names；Dummy 仍最后 |
 | `relay/channel/task/agensvideo/constants.go` | ChannelName、ModelList |
 | `relay/channel/task/agensvideo/adaptor.go` | TaskAdaptor 全套 + OpenAIVideoConverter |
 | `relay/channel/task/agensvideo/adaptor_test.go` | Create/Fetch/Parse/Convert 表驱动测试 |
@@ -380,7 +382,7 @@ CDN 直链场景可不做。
 
 | 文件 | 变更 |
 |------|------|
-| `web/classic/src/constants/channel.constants.js` | CHANNEL_OPTIONS 增加 60 |
+| `web/classic/src/constants/channel.constants.js` | CHANNEL_OPTIONS 增加 62 |
 | `service/playground_video.go` + test | 可选 profile |
 | `dto/playground_video.go` | 可选 capabilities |
 | Playground 表单 / `build-video-request.ts` | 可选专用 UI |
@@ -441,7 +443,7 @@ GetModelList / GetChannelName
 
 ### 11.2 集成 / 手工
 
-1. 管理端创建 type=60 渠道，填 CN BaseURL + key。  
+1. 管理端创建 type=62 渠道，填 CN BaseURL + key。  
 2. Playground 选 `agnes-video-v2.0` 文生视频。  
 3. 任务 SUCCESS 后出现 Preview，`<video>` 可播。  
 4. `GET /v1/videos/{public_id}` JSON 含 `metadata.url`。  
@@ -480,7 +482,7 @@ GetModelList / GetChannelName
 
 | 里程碑 | 内容 | 验收 |
 |--------|------|------|
-| **M1** | type=60 + adaptor（legacy poll + metadata.url）+ 渠道 UI | Playground 可预览文生视频 |
+| **M1** | type=62 + adaptor（legacy poll + metadata.url）+ 渠道 UI | Playground 可预览文生视频 |
 | **M2** | 优先 `/agnesapi?video_id=` + UpstreamVideoID | 轮询走官方推荐路径 |
 | **M3** | 切流迁移 #28；OpenAI 渠道去掉 agnes-video | 生产流量走专用类型 |
 | **M4** | playground `agens_video` profile + frames/fps UI | 参数与官方文档对齐 |
@@ -494,7 +496,7 @@ GetModelList / GetChannelName
 
 | 决策项 | 结论 |
 |--------|------|
-| 是否新增渠道类型 | **是** → `ChannelTypeAgnesVideo = 60` |
+| 是否新增渠道类型 | **是** → `ChannelTypeAgnesVideo = 62` |
 | 是否继续挂 OpenAI | **否**（仅短期兼容存量） |
 | 轮询 | 优先 `GET /agnesapi?video_id=`，回退 `GET /v1/videos/{task_id}` |
 | 结果 URL | 存 CDN；Convert 注入 `metadata.url` |

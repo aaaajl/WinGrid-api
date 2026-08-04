@@ -90,9 +90,18 @@ export function useVideoTask() {
             res.status === 'unknown' || !res.status
               ? 'queued'
               : res.status
+          const metadataUrl =
+            typeof res.metadata?.url === 'string' ? res.metadata.url.trim() : ''
+          const isProxyContentUrl =
+            !!metadataUrl && metadataUrl.includes(`/v1/videos/${id}/content`)
+          // Agnes (and similar) expose a public CDN URL in metadata.url.
+          // Fall back to same-origin content proxy (session auth) when missing
+          // or when the gateway only returned its own /content URL.
           const videoUrl =
             status === 'completed'
-              ? (res.metadata?.url as string | undefined)
+              ? metadataUrl && !isProxyContentUrl
+                ? metadataUrl
+                : `/v1/videos/${id}/content`
               : undefined
           const errorMsg =
             status === 'failed' ? (res.error?.message ?? t('Generation failed')) : undefined

@@ -441,15 +441,16 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	return
 }
 
-// tryRealtimeFetch 尝试从上游实时拉取 Gemini/Vertex 任务状态。
-// 仅当渠道类型为 Gemini 或 Vertex 时触发；其他渠道或出错时返回 nil。
-// 当非 OpenAI Video API 时，还会构建自定义格式的响应体。
+// tryRealtimeFetch 尝试从上游实时拉取任务状态（Gemini / Vertex / Agnes Video）。
+// 其他渠道或出错时返回 nil。当非 OpenAI Video API 时，还会构建自定义格式的响应体。
 func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	channelModel, err := model.GetChannelById(task.ChannelId, true)
 	if err != nil {
 		return nil
 	}
-	if channelModel.Type != constant.ChannelTypeVertexAi && channelModel.Type != constant.ChannelTypeGemini {
+	switch channelModel.Type {
+	case constant.ChannelTypeVertexAi, constant.ChannelTypeGemini, constant.ChannelTypeAgnesVideo:
+	default:
 		return nil
 	}
 
@@ -467,40 +468,84 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	if apiKey == "" {
 		apiKey = channelModel.Key
 	}
-	resp, err := adaptor.FetchTask(baseURL, apiKey, map[string]any{
+	fetchBody := map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,
-	}, proxy)
+	}
+	if videoID := task.GetUpstreamVideoID(); videoID != "" {
+		fetchBody["video_id"] = videoID
+	}
+	if modelName := task.Properties.UpstreamModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	} else if modelName := task.Properties.OriginModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	}
+	resp, err := adaptor.FetchTask(baseURL, apiKey, fetchBody, proxy)
 	if err != nil || resp == nil {
 		return nil
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil
+	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil
 	}
 
 	ti, err := adaptor.ParseTaskResult(body)
-	if err != nil || ti == nil {
+	if err != nil || ti == nil || ti.Status == "" {
 		return nil
 	}
 
 	snap := task.Snapshot()
 
 	// 将上游最新状态更新到 task
-	if ti.Status != "" {
-		task.Status = model.TaskStatus(ti.Status)
-	}
+	task.Status = model.TaskStatus(ti.Status)
 	if ti.Progress != "" {
 		task.Progress = ti.Progress
+	} else {
+		switch task.Status {
+		case model.TaskStatusSuccess, model.TaskStatusFailure:
+			task.Progress = taskcommon.ProgressComplete
+		case model.TaskStatusInProgress:
+			if task.Progress == "" || task.Progress == "0%" {
+				task.Progress = taskcommon.ProgressInProgress
+			}
+		case model.TaskStatusQueued:
+			task.Progress = taskcommon.ProgressQueued
+		}
 	}
 	if strings.HasPrefix(ti.Url, "data:") {
 		// data: URI — kept in Data, not ResultURL
 	} else if ti.Url != "" {
 		task.PrivateData.ResultURL = ti.Url
 	} else if task.Status == model.TaskStatusSuccess {
-		// No URL from adaptor — construct proxy URL using public task ID
-		task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+		// Last resort: keep any non-proxy URL already stored; otherwise proxy.
+		if existing := strings.TrimSpace(task.PrivateData.ResultURL); existing == "" ||
+			strings.Contains(existing, "/v1/videos/"+task.TaskID+"/content") {
+			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+		}
+	}
+	task.Data = body
+
+	// Persist CDN url from upstream body when adaptor left Url empty but payload has it.
+	if task.Status == model.TaskStatusSuccess && strings.TrimSpace(ti.Url) == "" {
+		var payload struct {
+			URL      string         `json:"url"`
+			Metadata map[string]any `json:"metadata"`
+		}
+		if err := common.Unmarshal(body, &payload); err == nil {
+			if cdn := strings.TrimSpace(payload.URL); cdn != "" {
+				task.PrivateData.ResultURL = cdn
+			} else if payload.Metadata != nil {
+				if u, ok := payload.Metadata["url"].(string); ok {
+					if cdn := strings.TrimSpace(u); cdn != "" {
+						task.PrivateData.ResultURL = cdn
+					}
+				}
+			}
+		}
 	}
 
 	if !snap.Equal(task.Snapshot()) {

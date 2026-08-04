@@ -40,18 +40,25 @@ func TestInitTask_PersistsApiKeyForGemini(t *testing.T) {
 	require.Equal(t, "gemini-key", task.PrivateData.Key)
 }
 
-func TestInitTask_DoesNotPersistApiKeyForSingleKeyChannel(t *testing.T) {
+func TestInitTask_PersistsApiKeyForAgnesVideo(t *testing.T) {
 	info := &commonRelay.RelayInfo{
 		UserId:     1,
 		UsingGroup: "default",
 		ChannelMeta: &commonRelay.ChannelMeta{
-			ChannelId:         1,
-			ChannelType:       constant.ChannelTypeMiniMax,
+			ChannelId:         60,
+			ChannelType:       constant.ChannelTypeAgnesVideo,
 			ChannelIsMultiKey: false,
-			ApiKey:            "single-key",
+			ApiKey:            "agnes-key",
 		},
 	}
 
-	task := InitTask(constant.TaskPlatformMiniMaxV2, info)
-	require.Empty(t, task.PrivateData.Key)
+	task := InitTask(constant.TaskPlatform("60"), info)
+	require.Equal(t, "agnes-key", task.PrivateData.Key)
+	require.Equal(t, 60, task.ChannelId)
+}
+
+func TestExtractUpstreamVideoID(t *testing.T) {
+	require.Equal(t, "video_abc", ExtractUpstreamVideoID([]byte(`{"id":"task_1","video_id":"video_abc"}`)))
+	require.Equal(t, "", ExtractUpstreamVideoID([]byte(`{"id":"task_1"}`)))
+	require.Equal(t, "", ExtractUpstreamVideoID(nil))
 }

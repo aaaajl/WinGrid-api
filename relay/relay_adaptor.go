@@ -34,6 +34,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/sub2api"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
+	taskagensvideo "github.com/QuantumNous/new-api/relay/channel/task/agensvideo"
 	taskhappyhorse "github.com/QuantumNous/new-api/relay/channel/task/happyhorse"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
@@ -165,6 +166,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskali.TaskAdaptor{}
 		case constant.ChannelTypeHappyHorse:
 			return &taskhappyhorse.TaskAdaptor{}
+		case constant.ChannelTypeAgnesVideo:
+			return &taskagensvideo.TaskAdaptor{}
 		case constant.ChannelTypeKling:
 			return &kling.TaskAdaptor{}
 		case constant.ChannelTypeJimeng:

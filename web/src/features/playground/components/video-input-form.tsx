@@ -31,20 +31,24 @@ import {
 } from '@/components/ui/select'
 import { getUserTokens, fetchTokenKey } from '../api'
 import { STORAGE_KEYS_VIDEO } from '../constants'
+import { AgnesVideoFields } from './agnes-video-fields'
 import { GenericVideoFields } from './generic-video-fields'
 import { HappyHorseVideoFields } from './happyhorse-video-fields'
 import { MiniMaxH3VideoFields } from './minimax-h3-video-fields'
 import { SeedanceVideoFields } from './seedance-video-fields'
 import {
   buildVideoRequest,
+  getDefaultAgnesVideoFormState,
   getDefaultGenericFormState,
   getDefaultHappyHorseFormState,
   getDefaultMiniMaxH3FormState,
   getDefaultSeedanceFormState,
+  isAgnesVideoCapabilities,
   isGenericCapabilities,
   isHappyHorseCapabilities,
   isMiniMaxH3Capabilities,
   isSeedanceCapabilities,
+  type AgnesVideoFormState,
   type GenericFormState,
   type HappyHorseFormState,
   type MiniMaxH3FormState,
@@ -67,6 +71,7 @@ const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   happyhorse: 'HappyHorse',
   seedance: 'Seedance',
   minimax_h3: 'MiniMax H3',
+  agnes_video: 'Agnes Video',
   generic: 'Video',
 }
 
@@ -105,6 +110,9 @@ export function VideoInputForm(props: VideoInputFormProps) {
   )
   const [miniMaxH3State, setMiniMaxH3State] = useState<MiniMaxH3FormState | null>(
     () => initialDraft?.miniMaxH3 ?? null
+  )
+  const [agnesVideoState, setAgnesVideoState] = useState<AgnesVideoFormState | null>(
+    () => initialDraft?.agnesVideo ?? null
   )
   const [genericState, setGenericState] = useState<GenericFormState | null>(
     () => initialDraft?.generic ?? null
@@ -170,6 +178,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       )
       setSeedanceState(null)
       setMiniMaxH3State(null)
+      setAgnesVideoState(null)
       setGenericState(null)
       return
     }
@@ -181,6 +190,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       )
       setHappyHorseState(null)
       setMiniMaxH3State(null)
+      setAgnesVideoState(null)
       setGenericState(null)
       return
     }
@@ -192,6 +202,19 @@ export function VideoInputForm(props: VideoInputFormProps) {
       )
       setHappyHorseState(null)
       setSeedanceState(null)
+      setAgnesVideoState(null)
+      setGenericState(null)
+      return
+    }
+    if (selectedModel.profile === 'agnes_video') {
+      setAgnesVideoState((current) =>
+        current?.model === selectedModel.model
+          ? current
+          : getDefaultAgnesVideoFormState(selectedModel)
+      )
+      setHappyHorseState(null)
+      setSeedanceState(null)
+      setMiniMaxH3State(null)
       setGenericState(null)
       return
     }
@@ -203,6 +226,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
     setHappyHorseState(null)
     setSeedanceState(null)
     setMiniMaxH3State(null)
+    setAgnesVideoState(null)
   }, [selectedModel])
 
   useEffect(() => {
@@ -217,6 +241,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       happyHorse: happyHorseState,
       seedance: seedanceState,
       miniMaxH3: miniMaxH3State,
+      agnesVideo: agnesVideoState,
       generic: genericState,
     })
   }, [
@@ -226,6 +251,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
     happyHorseState,
     seedanceState,
     miniMaxH3State,
+    agnesVideoState,
     genericState,
   ])
 
@@ -242,6 +268,8 @@ export function VideoInputForm(props: VideoInputFormProps) {
     hasProfileState = seedanceState != null
   } else if (selectedModel?.profile === 'minimax_h3') {
     hasProfileState = miniMaxH3State != null
+  } else if (selectedModel?.profile === 'agnes_video') {
+    hasProfileState = agnesVideoState != null
   } else if (selectedModel) {
     hasProfileState = genericState != null
   }
@@ -269,6 +297,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       | HappyHorseFormState
       | SeedanceFormState
       | MiniMaxH3FormState
+      | AgnesVideoFormState
       | GenericFormState
     if (profile === 'happyhorse') {
       formState = { ...(happyHorseState as HappyHorseFormState), prompt }
@@ -276,20 +305,25 @@ export function VideoInputForm(props: VideoInputFormProps) {
       formState = { ...(seedanceState as SeedanceFormState), prompt }
     } else if (profile === 'minimax_h3') {
       formState = { ...(miniMaxH3State as MiniMaxH3FormState), prompt }
+    } else if (profile === 'agnes_video') {
+      formState = { ...(agnesVideoState as AgnesVideoFormState), prompt }
     } else {
       formState = { ...(genericState as GenericFormState), prompt }
     }
 
     const req = buildVideoRequest(profile, formState)
 
+    let sizeMeta: string | undefined
+    if ('size' in formState && formState.size) {
+      sizeMeta = formState.size
+    } else if (profile === 'minimax_h3' && 'resolution' in formState) {
+      sizeMeta = formState.resolution
+    }
+
     const meta = {
       duration: formState.duration,
       profile,
-      ...('size' in formState && formState.size
-        ? { size: formState.size }
-        : profile === 'minimax_h3' && 'resolution' in formState
-          ? { size: formState.resolution }
-          : {}),
+      ...(sizeMeta ? { size: sizeMeta } : {}),
     }
 
     await props.onSubmit(req, realKey, selectedToken.id, meta)
@@ -425,6 +459,20 @@ export function VideoInputForm(props: VideoInputFormProps) {
             state={miniMaxH3State}
             onChange={(patch) =>
               setMiniMaxH3State((current) =>
+                current ? { ...current, ...patch } : current
+              )
+            }
+          />
+        )}
+
+      {selectedModel?.profile === 'agnes_video' &&
+        agnesVideoState &&
+        isAgnesVideoCapabilities(selectedModel.capabilities) && (
+          <AgnesVideoFields
+            capabilities={selectedModel.capabilities}
+            state={agnesVideoState}
+            onChange={(patch) =>
+              setAgnesVideoState((current) =>
                 current ? { ...current, ...patch } : current
               )
             }

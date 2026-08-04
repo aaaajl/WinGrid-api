@@ -175,6 +175,17 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://dashscope.aliyuncs.com',
     },
   },
+  62: {
+    id: 62,
+    name: CHANNEL_TYPES[62],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.agnes-ai.cn',
+    hints: {
+      key: 'Agnes AI API Key',
+      models: 'agnes-video-v2.0',
+      baseUrl: 'CN: https://api.agnes-ai.cn · Global: https://apihub.agnes-ai.com',
+    },
+  },
 }
 
 /**

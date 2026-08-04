@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -101,9 +102,10 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key             string `json:"key,omitempty"`
+	UpstreamTaskID  string `json:"upstream_task_id,omitempty"`  // 上游真实 task ID
+	UpstreamVideoID string `json:"upstream_video_id,omitempty"` // 上游 video_id（如 Agnes 推荐轮询键）
+	ResultURL       string `json:"result_url,omitempty"`        // 任务成功后的结果 URL（视频地址等）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
@@ -134,6 +136,26 @@ func (t *Task) GetUpstreamTaskID() string {
 		return t.PrivateData.UpstreamTaskID
 	}
 	return t.TaskID
+}
+
+// GetUpstreamVideoID returns the provider video_id when present (e.g. Agnes).
+func (t *Task) GetUpstreamVideoID() string {
+	return t.PrivateData.UpstreamVideoID
+}
+
+// ExtractUpstreamVideoID reads an optional video_id from upstream task JSON.
+// Providers that do not return the field leave it empty (backward compatible).
+func ExtractUpstreamVideoID(taskData []byte) string {
+	if len(taskData) == 0 {
+		return ""
+	}
+	var payload struct {
+		VideoID string `json:"video_id"`
+	}
+	if err := common.Unmarshal(taskData, &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.VideoID)
 }
 
 // GetResultURL 获取任务结果 URL（视频地址等）
@@ -186,10 +208,12 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 		// Persist the key actually used for this submission when:
 		// - multi-key channel: polling must reuse the selected key, not the full newline-joined blob
 		// - Gemini/Vertex: credentials may be JSON and must not go through ch.Key splitting
+		// - Agnes Video: prefer stored key for /agnesapi polling even when channel later changes
 		if relayInfo.ChannelMeta.ApiKey != "" &&
 			(relayInfo.ChannelMeta.ChannelIsMultiKey ||
 				relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
-				relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi) {
+				relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi ||
+				relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeAgnesVideo) {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
 		if relayInfo.UpstreamModelName != "" {

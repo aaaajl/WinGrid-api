@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS, STORAGE_KEYS_IMAGE, STORAGE_KEYS_VIDEO } from '../../constants'
 import type {
+  AgnesVideoFormState,
   GenericFormState,
   HappyHorseFormState,
   MiniMaxH3FormState,
@@ -34,6 +35,7 @@ export interface VideoDraft {
   happyHorse: HappyHorseFormState | null
   seedance: SeedanceFormState | null
   miniMaxH3: MiniMaxH3FormState | null
+  agnesVideo: AgnesVideoFormState | null
   generic: GenericFormState | null
 }
 
@@ -85,6 +87,7 @@ export function loadVideoDraft(): VideoDraft | null {
     happyHorse: draft.happyHorse ?? null,
     seedance: draft.seedance ?? null,
     miniMaxH3: draft.miniMaxH3 ?? null,
+    agnesVideo: draft.agnesVideo ?? null,
     generic: draft.generic ?? null,
   }
 }

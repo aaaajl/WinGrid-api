@@ -35,3 +35,13 @@ type MiniMaxH3VideoCapabilities struct {
 	Fields               []string `json:"fields"`
 	Form                 string   `json:"form"`
 }
+
+type AgnesVideoCapabilities struct {
+	SupportedSizes  []string   `json:"supported_sizes"`
+	SupportedRatios []string   `json:"supported_ratios"`
+	DurationRange   [2]int     `json:"duration_range"`
+	FrameRateRange  [2]float64 `json:"frame_rate_range"`
+	NumFramesRange  [2]int     `json:"num_frames_range"`
+	Fields          []string   `json:"fields"`
+	Form            string     `json:"form"`
+}

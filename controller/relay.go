@@ -602,6 +602,9 @@ func RelayTask(c *gin.Context) {
 
 		task := model.InitTask(result.Platform, relayInfo)
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
+		if videoID := model.ExtractUpstreamVideoID(result.TaskData); videoID != "" {
+			task.PrivateData.UpstreamVideoID = videoID
+		}
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
@@ -642,7 +645,14 @@ func respondTaskError(c *gin.Context, taskErr *taskdto.TaskError) {
 	if taskErr.StatusCode == http.StatusTooManyRequests {
 		taskErr.Message = "当前分组上游负载已饱和，请稍后再试"
 	}
-	c.JSON(taskErr.StatusCode, taskErr)
+	// Upstream 401/403 means channel credential failure, not the client's session/token.
+	// Remap so browsers/frontends do not treat relay failures as "logged out".
+	statusCode := taskErr.StatusCode
+	if !taskErr.LocalError &&
+		(statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden) {
+		statusCode = http.StatusBadGateway
+	}
+	c.JSON(statusCode, taskErr)
 }
 
 func shouldRetryTaskRelay(c *gin.Context, channelId int, taskErr *taskdto.TaskError, retryTimes int) bool {

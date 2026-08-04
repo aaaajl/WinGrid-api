@@ -475,10 +475,20 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		return fmt.Errorf("task %s not found", taskId)
 	}
 	key := resolveTaskPollingKey(ch, task)
-	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
+	fetchBody := map[string]any{
 		"task_id": task.GetUpstreamTaskID(),
 		"action":  task.Action,
-	}, proxy)
+	}
+	// Optional provider keys (ignored by adaptors that do not use them).
+	if videoID := task.GetUpstreamVideoID(); videoID != "" {
+		fetchBody["video_id"] = videoID
+	}
+	if modelName := task.Properties.UpstreamModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	} else if modelName := task.Properties.OriginModelName; modelName != "" {
+		fetchBody["model"] = modelName
+	}
+	resp, err := adaptor.FetchTask(baseURL, key, fetchBody, proxy)
 	if err != nil {
 		return fmt.Errorf("fetchTask failed for task %s: %w", taskId, err)
 	}
@@ -559,11 +569,29 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
 		} else if taskResult.Url != "" {
-			// Direct upstream URL (e.g. Kling, Ali, Doubao, etc.)
+			// Direct upstream URL (e.g. Kling, Ali, Doubao, Agnes CDN, etc.)
 			task.PrivateData.ResultURL = taskResult.Url
 		} else {
-			// No URL from adaptor — construct proxy URL using public task ID
-			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+			// Prefer CDN/direct URL still present in the upstream payload.
+			var payload struct {
+				URL      string         `json:"url"`
+				Metadata map[string]any `json:"metadata"`
+			}
+			if err := common.Unmarshal(responseBody, &payload); err == nil {
+				if cdn := strings.TrimSpace(payload.URL); cdn != "" {
+					task.PrivateData.ResultURL = cdn
+				} else if payload.Metadata != nil {
+					if u, ok := payload.Metadata["url"].(string); ok {
+						if cdn := strings.TrimSpace(u); cdn != "" {
+							task.PrivateData.ResultURL = cdn
+						}
+					}
+				}
+			}
+			if strings.TrimSpace(task.PrivateData.ResultURL) == "" ||
+				strings.Contains(task.PrivateData.ResultURL, "/v1/videos/"+task.TaskID+"/content") {
+				task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
+			}
 		}
 		shouldSettle = true
 	case model.TaskStatusFailure:

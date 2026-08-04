@@ -76,7 +76,7 @@ func TestVideoRequestProfile(t *testing.T) {
 	assert.Equal(t, VideoProfileSeedance, VideoRequestProfile("doubao-seedance-1-0-lite-t2v"))
 	assert.Equal(t, VideoProfileMiniMaxH3, VideoRequestProfile("MiniMax-H3"))
 	assert.Equal(t, VideoProfileMiniMaxH3, VideoRequestProfile("minimax-h3"))
-	assert.Equal(t, VideoProfileGeneric, VideoRequestProfile("agnes-video-v2.0"))
+	assert.Equal(t, VideoProfileAgnesVideo, VideoRequestProfile("agnes-video-v2.0"))
 	assert.Equal(t, VideoProfileGeneric, VideoRequestProfile("kling-v1"))
 }
 
@@ -101,6 +101,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		{Group: "default", Model: "happyhorse-disabled", ChannelId: 5, Enabled: true},
 		{Group: "default", Model: "custom-t2v-model", ChannelId: 6, Enabled: true},
 		{Group: "default", Model: "MiniMax-H3", ChannelId: 7, Enabled: true},
+		{Group: "default", Model: "agnes-video-v2.0", ChannelId: 8, Enabled: true},
 	}).Error)
 
 	now := common.GetTimestamp()
@@ -111,6 +112,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		{ModelName: "happyhorse-disabled", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 		{ModelName: "custom-t2v-model", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 		{ModelName: "MiniMax-H3", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
+		{ModelName: "agnes-video-v2.0", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 	}).Error)
 	require.NoError(t, db.Model(&model.Model{}).
 		Where("model_name = ?", "happyhorse-disabled").
@@ -118,7 +120,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 
 	models, err := ListPlaygroundVideoModels("default")
 	require.NoError(t, err)
-	require.Len(t, models, 5)
+	require.Len(t, models, 6)
 
 	names := make([]string, 0, len(models))
 	for _, item := range models {
@@ -130,6 +132,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		"kling-v1",
 		"custom-t2v-model",
 		"MiniMax-H3",
+		"agnes-video-v2.0",
 	}, names)
 
 	for _, item := range models {
@@ -145,6 +148,14 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 			assert.Equal(t, "minimax_h3", caps.Form)
 			assert.Equal(t, []string{"768P", "2K"}, caps.SupportedResolutions)
 			assert.Equal(t, [2]int{4, 15}, caps.DurationRange)
+		case "agnes-video-v2.0":
+			assert.Equal(t, VideoProfileAgnesVideo, item.Profile)
+			caps, ok := item.Capabilities.(dto.AgnesVideoCapabilities)
+			require.True(t, ok)
+			assert.Equal(t, "agnes_video", caps.Form)
+			assert.Equal(t, []string{"480P", "720P", "1080P"}, caps.SupportedSizes)
+			assert.Equal(t, []string{"16:9", "9:16", "1:1"}, caps.SupportedRatios)
+			assert.Equal(t, [2]int{1, 18}, caps.DurationRange)
 		case "kling-v1", "custom-t2v-model":
 			assert.Equal(t, VideoProfileGeneric, item.Profile)
 		default:

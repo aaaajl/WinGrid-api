@@ -42,6 +42,7 @@ const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   happyhorse: 'HappyHorse',
   seedance: 'Seedance',
   minimax_h3: 'MiniMax H3',
+  agnes_video: 'Agnes Video',
   generic: 'Video',
 }
 

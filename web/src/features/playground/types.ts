@@ -170,6 +170,8 @@ export interface VideoGenerationRequest {
   duration?: number
   ratio?: string
   aigc_watermark?: boolean
+  /** Optional image-to-video reference (Agnes / TaskSubmitReq). */
+  image?: string
   content?: Array<{
     type: 'text' | 'image_url' | 'video_url' | 'audio_url'
     text?: string
@@ -187,6 +189,7 @@ export type VideoRequestProfile =
   | 'happyhorse'
   | 'seedance'
   | 'minimax_h3'
+  | 'agnes_video'
   | 'generic'
 
 export interface HappyHorseCapabilities {
@@ -210,6 +213,16 @@ export interface MiniMaxH3Capabilities {
   form: 'minimax_h3'
 }
 
+export interface AgnesVideoCapabilities {
+  supported_sizes: string[]
+  supported_ratios: string[]
+  duration_range: [number, number]
+  frame_rate_range: [number, number]
+  num_frames_range: [number, number]
+  fields: string[]
+  form: 'agnes_video'
+}
+
 export interface GenericCapabilities {
   supported_sizes: string[]
   duration_range: [number, number]
@@ -226,6 +239,7 @@ export interface PlaygroundVideoModel {
     | HappyHorseCapabilities
     | SeedanceCapabilities
     | MiniMaxH3Capabilities
+    | AgnesVideoCapabilities
     | GenericCapabilities
 }
 

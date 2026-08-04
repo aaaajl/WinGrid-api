@@ -178,6 +178,7 @@ export function Playground() {
       happyHorse: draft?.happyHorse ?? null,
       seedance: draft?.seedance ?? null,
       miniMaxH3: draft?.miniMaxH3 ?? null,
+      agnesVideo: draft?.agnesVideo ?? null,
       generic: draft?.generic ?? null,
     })
   }, [videoPrompt])
