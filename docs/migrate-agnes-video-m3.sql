@@ -1,6 +1,6 @@
--- M3: Cut over agnes-video-v2.0 from OpenAI (type=1) to Agnes Video (type=62).
+-- M3: Cut over agnes-video-v2.0 from OpenAI (type=1) to Agnes Video (type=962).
 -- Source channel for keys/settings: AgensGlobal (#26) by default.
--- Safe to re-run: skips insert if a type=62 channel already mounts agnes-video-v2.0.
+-- Safe to re-run: skips insert if a type=962 channel already mounts agnes-video-v2.0.
 --
 -- After applying: reload channel/ability cache (restart or admin refresh) so routing picks up #30.
 
@@ -14,7 +14,7 @@ INSERT INTO channels (
   param_override, header_override, remark, channel_info, settings
 )
 SELECT
-  62,
+  962,
   key,
   open_ai_organization,
   'agnes-video-v2.0',
@@ -40,19 +40,19 @@ SELECT
   setting,
   param_override,
   header_override,
-  'Migrated from AgensGlobal for ChannelTypeAgnesVideo=62',
+  'Migrated from AgensGlobal for ChannelTypeAgnesVideo=962',
   channel_info,
   settings
 FROM channels
 WHERE id = 26
   AND NOT EXISTS (
-    SELECT 1 FROM channels WHERE type = 62 AND models LIKE '%agnes-video-v2.0%'
+    SELECT 1 FROM channels WHERE type = 962 AND models LIKE '%agnes-video-v2.0%'
   );
 
 INSERT INTO abilities ("group", model, channel_id, enabled, priority, weight)
 SELECT c."group", 'agnes-video-v2.0', c.id, true, COALESCE(c.priority, 13), COALESCE(c.weight, 0)
 FROM channels c
-WHERE c.type = 62 AND c.models LIKE '%agnes-video-v2.0%'
+WHERE c.type = 962 AND c.models LIKE '%agnes-video-v2.0%'
   AND NOT EXISTS (
     SELECT 1 FROM abilities a
     WHERE a.channel_id = c.id AND a.model = 'agnes-video-v2.0' AND a."group" = c."group"
@@ -72,5 +72,5 @@ WHERE model = 'agnes-video-v2.0' AND channel_id IN (26, 28);
 COMMIT;
 
 -- Verify:
--- SELECT id, name, type, status, models FROM channels WHERE type = 62 OR id IN (26, 28);
+-- SELECT id, name, type, status, models FROM channels WHERE type = 962 OR id IN (26, 28);
 -- SELECT * FROM abilities WHERE model = 'agnes-video-v2.0';

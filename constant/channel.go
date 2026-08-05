@@ -58,10 +58,13 @@ const (
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSub2API        = 59
 	ChannelTypeNewAPI         = 60
-	ChannelTypeHappyHorse     = 61
-	ChannelTypeAgnesVideo     = 62
-	ChannelTypeDummy          // this one is only for count, do not add any channel after this
+	// ChannelTypeDummy is the last contiguous channel type ID (inclusive).
+	// High-ID fork types below are registered explicitly and must not use sequential IDs.
+	ChannelTypeDummy = 60
 
+	// High IDs for fork/custom channels so they do not collide with upstream allocations.
+	ChannelTypeHappyHorse = 961
+	ChannelTypeAgnesVideo = 962
 )
 
 var ChannelBaseURLs = []string{
@@ -126,8 +129,21 @@ var ChannelBaseURLs = []string{
 	"",                                          //58
 	"",                                          //59
 	"",                                          //60
-	"https://dashscope.aliyuncs.com",            //61
-	"https://api.agnes-ai.cn",                   //62
+}
+
+// channelBaseURLExtras holds default base URLs for non-contiguous channel type IDs.
+var channelBaseURLExtras = map[int]string{
+	ChannelTypeHappyHorse: "https://dashscope.aliyuncs.com",
+	ChannelTypeAgnesVideo: "https://api.agnes-ai.cn",
+}
+
+// GetChannelBaseURL returns the default base URL for a channel type.
+// Safe for both contiguous slice indices and high-ID fork channel types.
+func GetChannelBaseURL(channelType int) string {
+	if channelType >= 0 && channelType < len(ChannelBaseURLs) {
+		return ChannelBaseURLs[channelType]
+	}
+	return channelBaseURLExtras[channelType]
 }
 
 var ChannelTypeNames = map[int]string{

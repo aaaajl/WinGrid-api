@@ -104,8 +104,8 @@ export function getChannelTypeIcon(type: number): string {
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo
     56: 'Replicate', // Replicate
-    61: 'Tongyi', // HappyHorse
-    62: 'Agnes', // Agnes Video
+    961: 'Tongyi', // HappyHorse
+    962: 'Agnes', // Agnes Video
 
     // Tools & Platforms
     37: 'Dify', // Dify

@@ -164,9 +164,9 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'Models',
     },
   },
-  61: {
-    id: 61,
-    name: CHANNEL_TYPES[61],
+  961: {
+    id: 961,
+    name: CHANNEL_TYPES[961],
     icon: 'tongyi',
     defaultBaseUrl: 'https://dashscope.aliyuncs.com',
     hints: {
@@ -175,9 +175,9 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Default: https://dashscope.aliyuncs.com',
     },
   },
-  62: {
-    id: 62,
-    name: CHANNEL_TYPES[62],
+  962: {
+    id: 962,
+    name: CHANNEL_TYPES[962],
     icon: 'openai',
     defaultBaseUrl: 'https://api.agnes-ai.cn',
     hints: {

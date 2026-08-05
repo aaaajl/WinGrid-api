@@ -52,7 +52,7 @@ func TestInitTask_PersistsApiKeyForAgnesVideo(t *testing.T) {
 		},
 	}
 
-		task := InitTask(constant.TaskPlatform("962"), info)
+	task := InitTask(constant.TaskPlatform("60"), info)
 	require.Equal(t, "agnes-key", task.PrivateData.Key)
 	require.Equal(t, 60, task.ChannelId)
 }

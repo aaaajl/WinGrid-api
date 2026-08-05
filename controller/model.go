@@ -91,7 +91,15 @@ func init() {
 		})
 	}
 	channelId2Models = make(map[int][]string)
+	channelTypesToRegister := make([]int, 0, constant.ChannelTypeDummy+2)
 	for i := 1; i <= constant.ChannelTypeDummy; i++ {
+		channelTypesToRegister = append(channelTypesToRegister, i)
+	}
+	channelTypesToRegister = append(channelTypesToRegister,
+		constant.ChannelTypeHappyHorse,
+		constant.ChannelTypeAgnesVideo,
+	)
+	for _, i := range channelTypesToRegister {
 		apiType, success := common.ChannelType2APIType(i)
 		if !success || apiType == constant.APITypeAIProxyLibrary {
 			// Try task adaptor for channels not mapped to a standard API type
