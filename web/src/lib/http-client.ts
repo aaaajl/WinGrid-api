@@ -143,7 +143,17 @@ api.interceptors.response.use(
 
 api.interceptors.request.use((config) => {
   const accessToken = useAuthStore.getState().auth.accessToken
-  if (accessToken) {
+  if (!accessToken) return config
+
+  // Preserve explicit Authorization (e.g. playground API-key relay calls).
+  const headers = config.headers
+  const existing =
+    typeof headers?.get === 'function'
+      ? headers.get('Authorization') || headers.get('authorization')
+      : (headers as Record<string, unknown> | undefined)?.Authorization ||
+        (headers as Record<string, unknown> | undefined)?.authorization
+
+  if (!existing) {
     config.headers.Authorization = `Bearer ${accessToken}`
   }
   return config

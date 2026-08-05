@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -414,8 +415,8 @@ func TestDoResponse_ErrorCode(t *testing.T) {
 	}
 
 	hhResp := HappyHorseResponse{
-		Code:    "InvalidParameter",
-		Message: "model not found",
+		Code:      "InvalidParameter",
+		Message:   "model not found",
 		RequestID: "req-do-002",
 	}
 	body, _ := common.Marshal(hhResp)
@@ -526,8 +527,8 @@ func TestConvertToOpenAIVideo_WithError(t *testing.T) {
 			Code:       "GPU_ERROR",
 			Message:    "GPU out of memory",
 		},
-		Code:    "InternalError",
-		Message: "internal server error",
+		Code:      "InternalError",
+		Message:   "internal server error",
 		RequestID: "req-conv-2",
 	}
 	data, _ := common.Marshal(hhResp)

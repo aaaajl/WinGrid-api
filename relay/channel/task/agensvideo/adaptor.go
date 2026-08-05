@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -26,18 +27,18 @@ import (
 // ============================
 
 type createRequest struct {
-	Model              string         `json:"model"`
-	Prompt             string         `json:"prompt"`
-	Image              string         `json:"image,omitempty"`
-	Mode               string         `json:"mode,omitempty"`
-	Height             *int           `json:"height,omitempty"`
-	Width              *int           `json:"width,omitempty"`
-	NumFrames          *int           `json:"num_frames,omitempty"`
-	FrameRate          *float64       `json:"frame_rate,omitempty"`
-	NumInferenceSteps  *int           `json:"num_inference_steps,omitempty"`
-	Seed               *int           `json:"seed,omitempty"`
-	NegativePrompt     string         `json:"negative_prompt,omitempty"`
-	ExtraBody          map[string]any `json:"extra_body,omitempty"`
+	Model             string         `json:"model"`
+	Prompt            string         `json:"prompt"`
+	Image             string         `json:"image,omitempty"`
+	Mode              string         `json:"mode,omitempty"`
+	Height            *int           `json:"height,omitempty"`
+	Width             *int           `json:"width,omitempty"`
+	NumFrames         *int           `json:"num_frames,omitempty"`
+	FrameRate         *float64       `json:"frame_rate,omitempty"`
+	NumInferenceSteps *int           `json:"num_inference_steps,omitempty"`
+	Seed              *int           `json:"seed,omitempty"`
+	NegativePrompt    string         `json:"negative_prompt,omitempty"`
+	ExtraBody         map[string]any `json:"extra_body,omitempty"`
 }
 
 type createResponse struct {
@@ -108,7 +109,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
-func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
 	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
 		return taskErr
 	}
@@ -208,7 +209,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *taskdto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)

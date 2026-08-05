@@ -204,6 +204,7 @@ export async function submitVideoGeneration(
     const res = await api.post(VIDEO_API_ENDPOINTS.SUBMIT, payload, {
       skipErrorHandler: true,
       skipBusinessError: true,
+      skipAuthRefresh: true,
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },
@@ -241,6 +242,7 @@ export async function fetchVideoTaskStatus(
   const res = await api.get(VIDEO_API_ENDPOINTS.STATUS(taskId), {
     skipErrorHandler: true,
     skipBusinessError: true,
+    skipAuthRefresh: true,
     headers: {
       Authorization: `Bearer ${apiKey}`,
     },
@@ -259,6 +261,7 @@ export async function submitImageGeneration(
     const res = await api.post(IMAGE_API_ENDPOINTS.GENERATIONS, payload, {
       skipErrorHandler: true,
       skipBusinessError: true,
+      skipAuthRefresh: true,
       headers: {
         Authorization: `Bearer ${apiKey}`,
       },

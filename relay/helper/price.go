@@ -257,26 +257,26 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 	return priceData, nil
 }
 
-func modelPriceHelperPerDuration(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
+func modelPriceHelperPerDuration(c *gin.Context, info *relaycommon.RelayInfo, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
 	cfg, ok := billing_setting.GetDurationPricing(info.OriginModelName)
 	if !ok {
-		return types.PriceData{}, fmt.Errorf("model %s is configured as per_duration but has no duration_pricing", info.OriginModelName)
+		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as per_duration but has no duration_pricing", info.OriginModelName)
 	}
 	if err := billing_setting.ValidateDurationPricing(cfg); err != nil {
-		return types.PriceData{}, fmt.Errorf("model %s duration_pricing invalid: %w", info.OriginModelName, err)
+		return hosttypes.PriceData{}, fmt.Errorf("model %s duration_pricing invalid: %w", info.OriginModelName, err)
 	}
 
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
-		return types.PriceData{}, fmt.Errorf("per_duration billing requires task request: %w", err)
+		return hosttypes.PriceData{}, fmt.Errorf("per_duration billing requires task request: %w", err)
 	}
 
 	duration, err := relaycommon.ResolveTaskBillingDuration(req)
 	if err != nil {
-		return types.PriceData{}, err
+		return hosttypes.PriceData{}, err
 	}
 	if duration < 1 || duration > relaycommon.MaxTaskDurationSeconds {
-		return types.PriceData{}, fmt.Errorf("seconds must be between 1 and %d", relaycommon.MaxTaskDurationSeconds)
+		return hosttypes.PriceData{}, fmt.Errorf("seconds must be between 1 and %d", relaycommon.MaxTaskDurationSeconds)
 	}
 
 	sizeKey := relaycommon.ResolveTaskBillingSize(req)
@@ -285,12 +285,12 @@ func modelPriceHelperPerDuration(c *gin.Context, info *relaycommon.RelayInfo, gr
 		SizePrices:    cfg.SizePrices,
 	}, sizeKey, duration)
 	if err != nil {
-		return types.PriceData{}, err
+		return hosttypes.PriceData{}, err
 	}
 
 	quota, err := common.QuotaFromFloatStrict(costUSD * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 	if err != nil {
-		return types.PriceData{}, err
+		return hosttypes.PriceData{}, err
 	}
 
 	freeModel := false
@@ -309,7 +309,7 @@ func modelPriceHelperPerDuration(c *gin.Context, info *relaycommon.RelayInfo, gr
 		UsedFallback: usedFallback,
 	}
 
-	priceData := types.PriceData{
+	priceData := hosttypes.PriceData{
 		FreeModel:      freeModel,
 		ModelPrice:     costUSD,
 		UsePrice:       true, // lock settle; PerCallBilling skips completion delta

@@ -8,12 +8,13 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -107,7 +108,7 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.apiKey = info.ApiKey
 }
 
-func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *taskdto.TaskError {
 	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
 		return taskErr
 	}
@@ -115,7 +116,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	// 模型特定验证
 	taskReq, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
-		return &dto.TaskError{
+		return &taskdto.TaskError{
 			Code:       "get_task_request_failed",
 			Message:    err.Error(),
 			StatusCode: http.StatusBadRequest,
@@ -128,7 +129,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 
 	// Validate duration and resolution locally before forwarding to upstream
 	if taskReq.Duration > 0 && (taskReq.Duration < 2 || taskReq.Duration > 15) {
-		return &dto.TaskError{
+		return &taskdto.TaskError{
 			Code:       "invalid_duration",
 			Message:    "duration must be between 2 and 15 seconds",
 			StatusCode: http.StatusBadRequest,
@@ -141,7 +142,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			resolution += "P"
 		}
 		if resolution != "720P" && resolution != "1080P" {
-			return &dto.TaskError{
+			return &taskdto.TaskError{
 				Code:       "invalid_resolution",
 				Message:    "resolution must be 720P or 1080P",
 				StatusCode: http.StatusBadRequest,
@@ -155,7 +156,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		var meta HappyHorseMetadata
 		if err := taskcommon.UnmarshalMetadata(taskReq.Metadata, &meta); err == nil {
 			if meta.Duration != nil && *meta.Duration > 0 && (*meta.Duration < 2 || *meta.Duration > 15) {
-				return &dto.TaskError{
+				return &taskdto.TaskError{
 					Code:       "invalid_duration",
 					Message:    "metadata duration must be between 2 and 15 seconds",
 					StatusCode: http.StatusBadRequest,
@@ -168,7 +169,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	switch {
 	case strings.Contains(model, "i2v"), strings.Contains(model, "r2v"):
 		if !hasImage {
-			return &dto.TaskError{
+			return &taskdto.TaskError{
 				Code:       "missing_image_input",
 				Message:    fmt.Sprintf("images or input_reference is required for %s model", model),
 				StatusCode: http.StatusBadRequest,
@@ -184,7 +185,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 				}
 			}
 			if !hasVideoInMeta && !hasImage {
-				return &dto.TaskError{
+				return &taskdto.TaskError{
 					Code:       "missing_video_input",
 					Message:    fmt.Sprintf("video input (input_reference or images) is required for %s model", model),
 					StatusCode: http.StatusBadRequest,
@@ -367,7 +368,7 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 // DoResponse handles upstream response
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *dto.TaskError) {
+func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *taskdto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)

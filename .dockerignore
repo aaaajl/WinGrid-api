@@ -10,3 +10,12 @@ docs
 /web/node_modules
 /web/dist
 !THIRD-PARTY-LICENSES.md
+# macOS Finder "Copy" duplicates break `go build` (redeclared symbols) and bun lockfiles
+**/* 2.go
+**/* 2.ts
+**/* 2.tsx
+**/* 2.json
+**/* 2.lock
+**/* 2.md
+**/* 2.yml
+**/output.mp4

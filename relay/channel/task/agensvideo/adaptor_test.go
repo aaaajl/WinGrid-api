@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,9 +141,9 @@ func TestFetchTask_RequiresVideoID(t *testing.T) {
 func TestConvertToOpenAIVideo_InjectsMetadataURL(t *testing.T) {
 	a := &TaskAdaptor{}
 	task := &model.Task{
-		TaskID: "task_public",
-		Status: model.TaskStatusSuccess,
-		Progress: "100%",
+		TaskID:     "task_public",
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
 		Properties: model.Properties{OriginModelName: "agnes-video-v2.0"},
 		PrivateData: model.TaskPrivateData{
 			ResultURL: "https://cdn.example.com/v.mp4",
@@ -165,9 +166,9 @@ func TestConvertToOpenAIVideo_InjectsMetadataURL(t *testing.T) {
 func TestConvertToOpenAIVideo_PrefersCDNOverProxy(t *testing.T) {
 	a := &TaskAdaptor{}
 	task := &model.Task{
-		TaskID:   "task_public",
-		Status:   model.TaskStatusSuccess,
-		Progress: "100%",
+		TaskID:     "task_public",
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
 		Properties: model.Properties{OriginModelName: "agnes-video-v2.0"},
 		PrivateData: model.TaskPrivateData{
 			ResultURL: "https://gateway.example.com/v1/videos/task_public/content",
@@ -188,9 +189,9 @@ func TestConvertToOpenAIVideo_PrefersCDNOverProxy(t *testing.T) {
 func TestConvertToOpenAIVideo_PrefersTopLevelURL(t *testing.T) {
 	a := &TaskAdaptor{}
 	task := &model.Task{
-		TaskID:   "task_public",
-		Status:   model.TaskStatusSuccess,
-		Progress: "100%",
+		TaskID:     "task_public",
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
 		Properties: model.Properties{OriginModelName: "agnes-video-v2.0"},
 		PrivateData: model.TaskPrivateData{
 			ResultURL: "https://gateway.example.com/v1/videos/task_public/content",
