@@ -1,0 +1,232 @@
+# 生产入口 Caddyfile（一主多从）
+#
+# 部署前请把 SLAVE1_IP 换成从节点内网 IP（与主节点同 VPC、对 Caddy 机开放 3888）。
+# 校验并热加载：
+#   sudo caddy validate --config /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# 策略：
+#   api.wingrid.tech     → 仅本机主节点（不分流）
+#   ai.wormholexyz.xyz   → 控制面钉主；数据面主+从加权负载（主 1 : 从 9）
+
+api.wingrid.tech {
+	tls /etc/caddy/api-wingrid-cert.pem /etc/caddy/api-wingrid-key.pem
+	reverse_proxy http://127.0.0.1:3888
+}
+
+mp.wormholexyz.xyz {
+	# 启用 HTTPS（自动从 Let's Encrypt 获取证书）
+	#tls carmine.joint@gmail.com # 替换为你的邮箱地址
+
+	# 启用 Gzip 压缩
+	encode gzip
+
+	# 处理 /h5/* 路径（优先匹配）
+	handle /h5/* {
+		root * /var/www/static/
+		file_server
+	}
+
+	# 反向代理配置
+	handle_path /longevity/* {
+		reverse_proxy http://127.0.0.1:8888 {
+			# 可选：设置请求头
+		}
+	}
+
+	# 👉 新增 market 服务
+	handle_path /market/* {
+		reverse_proxy http://127.0.0.1:8090 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+		}
+	}
+
+	# 可选：处理根路径的请求
+	handle / {
+		respond "Welcome to mp.wormholexyz.xyz" 200
+	}
+
+	# 安全相关配置
+	header {
+		# 防止 MIME 类型嗅探
+		X-Content-Type-Options nosniff
+		# 防止点击劫持
+		X-Frame-Options DENY
+		# 推荐的安全策略
+		Referrer-Policy strict-origin-when-cross-origin
+		# 缓存控制（可根据需求调整）
+		Cache-Control "public, max-age=3600"
+	}
+
+	# 可选：日志配置（JSON 格式）
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+img.wormholexyz.xyz {
+	# 启用 HTTPS（自动从 Let's Encrypt 获取证书）
+	#tls carmine.joint@gmail.com # 替换为你的邮箱地址
+
+	# 启用 Gzip 压缩
+	encode gzip
+
+	handle / {
+		respond "Welcome to img.wormholexyz.xyz" 200
+	}
+
+	# 安全相关配置
+	header {
+		# 防止 MIME 类型嗅探
+		X-Content-Type-Options nosniff
+		# 防止点击劫持
+		X-Frame-Options DENY
+		# 推荐的安全策略
+		Referrer-Policy strict-origin-when-cross-origin
+		# 缓存控制（可根据需求调整）
+		Cache-Control "public, max-age=3600"
+	}
+
+	# 可选：日志配置（JSON 格式）
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+www.wormholexyz.xyz {
+	# tls carmine.joint@gmail.com
+
+	# 启用 Gzip 压缩
+	encode gzip
+	# ---------- 微信验证文件（优先匹配） ----------
+	handle /MP_verify_D8XHQZsmeUG1KefI.txt {
+		root * /var/www/static/
+		file_server
+	}
+
+	# 将所有请求代理到 4001 端口
+	reverse_proxy http://127.0.0.1:4001
+
+	# 安全相关配置
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Cache-Control "public, max-age=3600"
+	}
+
+	# 日志配置（JSON 格式）
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+ai.wormholexyz.xyz {
+	#tls carmine.joint@gmail.com
+
+	encode gzip zstd
+
+	# —— 控制面：只打本机主节点 ——
+	handle /api/* {
+		reverse_proxy http://127.0.0.1:3888 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	handle /dashboard/* {
+		reverse_proxy http://127.0.0.1:3888
+	}
+
+	handle /pg/* {
+		reverse_proxy http://127.0.0.1:3888 {
+			flush_interval -1
+		}
+	}
+
+	# —— 数据面：主 + 从（权重 1:3，从节点吃更多转发流量）——
+	# TODO: 将 SLAVE1_IP 替换为从节点内网 IP，例如 172.16.0.x
+	handle /v1/* {
+		reverse_proxy http://127.0.0.1:3888 http://127.0.0.1:3887 {
+			lb_policy weighted_round_robin 1 9
+			lb_try_duration 5s
+			fail_duration 30s
+			max_fails 3
+			unhealthy_status 5xx
+			health_uri /api/status
+			health_interval 15s
+			health_timeout 3s
+			flush_interval -1
+
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+			header_up Connection {>Connection}
+			header_up Upgrade {>Upgrade}
+
+			transport http {
+				read_timeout  30m
+				write_timeout 30m
+				dial_timeout  10s
+			}
+		}
+	}
+
+	handle /v1beta/* {
+		reverse_proxy http://127.0.0.1:3888 http://127.0.0.1:3887 {
+			lb_policy weighted_round_robin 1 9
+			health_uri /api/status
+			health_interval 15s
+			flush_interval -1
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Real-IP {remote_host}
+			transport http {
+				read_timeout  30m
+				write_timeout 30m
+			}
+		}
+	}
+
+	handle /mj/* {
+		reverse_proxy http://127.0.0.1:3888 http://127.0.0.1:3887 {
+			lb_policy weighted_round_robin 1 9
+			flush_interval -1
+		}
+	}
+
+	handle /suno/* {
+		reverse_proxy http://127.0.0.1:3888 http://127.0.0.1:3887 {
+			lb_policy weighted_round_robin 1 9
+			flush_interval -1
+		}
+	}
+
+	# 前端 SPA / 静态资源等钉主
+	handle {
+		reverse_proxy http://127.0.0.1:3888
+	}
+
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+epay.wormholexyz.xyz {
+	# tls carmine.joint@gmail.com
+
+	reverse_proxy http://127.0.0.1:3889
+
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}

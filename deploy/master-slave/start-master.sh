@@ -55,15 +55,22 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+# 调用方已设置的 IMAGE（如 deploy-master.sh）优先于 .env
+_IMAGE_OVERRIDE="${IMAGE-}"
+
 # shellcheck disable=SC1090
 set -a
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 set +a
 
+if [[ -n "${_IMAGE_OVERRIDE}" ]]; then
+  IMAGE="${_IMAGE_OVERRIDE}"
+fi
 IMAGE="${IMAGE:-wingrid-api:local}"
 HOST_PORT="${HOST_PORT:-3888}"
 NODE_NAME="${NODE_NAME:-new-api-master}"
+unset _IMAGE_OVERRIDE
 
 require_var() {
   local name="$1"
@@ -122,8 +129,24 @@ load_env_mode() {
 }
 
 compose() {
-  # 显式传入 SQL_DSN，确保覆盖 .env 里的值
-  SQL_DSN="${SQL_DSN}" docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" "$@"
+  # .env 里的 SQL_DSN 会经 compose env_file 注入容器；
+  # 仅靠 shell 前缀在部分环境（如 podman 模拟 docker）下压不过 env_file。
+  # 用临时 override 把 local|prod 解析后的值写成字面量，确保覆盖 .env。
+  local override rc
+  override="$(mktemp)"
+  cat > "${override}" <<EOF
+services:
+  new-api:
+    environment:
+      SQL_DSN: "${SQL_DSN}"
+EOF
+  set +e
+  SQL_DSN="${SQL_DSN}" \
+    docker compose -f "${COMPOSE_FILE}" -f "${override}" --env-file "${ENV_FILE}" "$@"
+  rc=$?
+  set -e
+  rm -f "${override}"
+  return "${rc}"
 }
 
 # 检查 HOST_PORT 是否被「非本 compose」的容器占用

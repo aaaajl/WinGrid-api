@@ -55,8 +55,8 @@ docker build ${NO_CACHE} \
 
 echo ""
 echo "==> 构建完成: ${IMAGE}"
-docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' | head -1
-docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' "${IMAGE}"
+# 避免 "docker images | head" 在 pipefail 下因 SIGPIPE 提前退出
+docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}' --filter "reference=${IMAGE}"
 echo ""
 echo "下一步:"
 echo "  主节点: ${SCRIPT_DIR}/start-master.sh"

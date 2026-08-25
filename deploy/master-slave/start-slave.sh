@@ -3,8 +3,8 @@
 #
 # 用法：
 #   ./start-slave.sh local                         # 连本地/公网库，默认 NODE_NAME=new-api-slave-1
-#   ./start-slave.sh prod new-api-slave-2          # 连生产内网库，并指定节点名
-#   ./start-slave.sh local --build new-api-slave-2
+#   ./start-slave.sh prod slave-1          # 连生产内网库，并指定节点名
+#   ./start-slave.sh local --build slave-1
 #   ./start-slave.sh prod --logs
 #   ./start-slave.sh --down                        # 停止
 #   ./start-slave.sh --restart                     # 重启，沿用上次 local/prod
@@ -61,12 +61,18 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+# 调用方已设置的 IMAGE（如 deploy-slave.sh）优先于 .env
+_IMAGE_OVERRIDE="${IMAGE-}"
+
 # shellcheck disable=SC1090
 set -a
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 set +a
 
+if [[ -n "${_IMAGE_OVERRIDE}" ]]; then
+  IMAGE="${_IMAGE_OVERRIDE}"
+fi
 IMAGE="${IMAGE:-wingrid-api:local}"
 HOST_PORT="${HOST_PORT:-3888}"
 if [[ -n "${CLI_NODE_NAME}" ]]; then
@@ -74,6 +80,7 @@ if [[ -n "${CLI_NODE_NAME}" ]]; then
 else
   NODE_NAME="${NODE_NAME:-new-api-slave-1}"
 fi
+unset _IMAGE_OVERRIDE
 
 require_var() {
   local name="$1"
@@ -142,8 +149,25 @@ load_env_mode() {
 }
 
 compose() {
+  # .env 里的 SQL_DSN / REDIS_CONN_STRING 会经 compose env_file 注入容器；
+  # 仅靠 shell 前缀在部分环境（如 podman 模拟 docker）下压不过 env_file。
+  # 用临时 override 把 local|prod 解析后的值写成字面量，确保覆盖 .env。
+  local override rc
+  override="$(mktemp)"
+  cat > "${override}" <<EOF
+services:
+  new-api:
+    environment:
+      SQL_DSN: "${SQL_DSN}"
+      REDIS_CONN_STRING: "${REDIS_CONN_STRING}"
+EOF
+  set +e
   SQL_DSN="${SQL_DSN}" REDIS_CONN_STRING="${REDIS_CONN_STRING}" \
-    docker compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" "$@"
+    docker compose -f "${COMPOSE_FILE}" -f "${override}" --env-file "${ENV_FILE}" "$@"
+  rc=$?
+  set -e
+  rm -f "${override}"
+  return "${rc}"
 }
 
 export IMAGE HOST_PORT NODE_NAME
@@ -167,7 +191,9 @@ case "${ACTION}" in
     echo "    SQL_DSN=${SQL_DSN}"
     echo "    REDIS=${REDIS_CONN_STRING}"
     echo "    NODE_NAME=${NODE_NAME}"
-    compose up -d
+    # 同 tag（如 wingrid-api:local）经 docker load 更新后，必须 --force-recreate
+    # 否则 compose up -d 认为配置未变，不会换到新镜像层
+    compose up -d --force-recreate new-api
     exit 0
     ;;
 esac
