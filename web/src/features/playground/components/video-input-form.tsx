@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router'
+import { FilmIcon, Loader2Icon, KeyRoundIcon } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,11 +19,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo, useEffect } from 'react'
-import { FilmIcon, Loader2Icon, KeyRoundIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -29,13 +30,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { getUserTokens, fetchTokenKey } from '../api'
+import { Textarea } from '@/components/ui/textarea'
+import { useAuthStore } from '@/stores/auth-store'
+
+import {
+  getUserTokens,
+  fetchTokenKey,
+  getInheritedTokenAutoGroups,
+} from '../api'
 import { STORAGE_KEYS_VIDEO } from '../constants'
-import { AgnesVideoFields } from './agnes-video-fields'
-import { GenericVideoFields } from './generic-video-fields'
-import { HappyHorseVideoFields } from './happyhorse-video-fields'
-import { MiniMaxH3VideoFields } from './minimax-h3-video-fields'
-import { SeedanceVideoFields } from './seedance-video-fields'
+import {
+  getCompatibleTokens,
+  selectCompatibleTokenId,
+} from '../lib/api-key-selection'
+import {
+  loadStoredTokenId,
+  loadVideoDraft,
+  saveStoredTokenId,
+  saveVideoDraft,
+} from '../lib/storage/ui-draft'
 import {
   buildVideoRequest,
   getDefaultAgnesVideoFormState,
@@ -43,35 +56,39 @@ import {
   getDefaultHappyHorseFormState,
   getDefaultMiniMaxH3FormState,
   getDefaultSeedanceFormState,
+  getDefaultWan30FormState,
   isAgnesVideoCapabilities,
   isGenericCapabilities,
   isHappyHorseCapabilities,
   isMiniMaxH3Capabilities,
   isSeedanceCapabilities,
+  isWan30VideoCapabilities,
   type AgnesVideoFormState,
   type GenericFormState,
   type HappyHorseFormState,
   type MiniMaxH3FormState,
   type SeedanceFormState,
+  type Wan30FormState,
 } from '../lib/video/build-video-request'
-import {
-  loadStoredTokenId,
-  loadVideoDraft,
-  saveStoredTokenId,
-  saveVideoDraft,
-} from '../lib/storage/ui-draft'
 import type {
   VideoGenerationRequest,
   TokenOption,
   PlaygroundVideoModel,
   VideoRequestProfile,
 } from '../types'
+import { AgnesVideoFields } from './agnes-video-fields'
+import { GenericVideoFields } from './generic-video-fields'
+import { HappyHorseVideoFields } from './happyhorse-video-fields'
+import { MiniMaxH3VideoFields } from './minimax-h3-video-fields'
+import { SeedanceVideoFields } from './seedance-video-fields'
+import { Wan30VideoFields } from './wan30-video-fields'
 
 const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   happyhorse: 'HappyHorse',
   seedance: 'Seedance',
   minimax_h3: 'MiniMax H3',
   agnes_video: 'Agnes Video',
+  wan30_video: 'Wan Video',
   generic: 'Video',
 }
 
@@ -94,6 +111,7 @@ interface VideoInputFormProps {
 
 export function VideoInputForm(props: VideoInputFormProps) {
   const { t } = useTranslation()
+  const userGroup = useAuthStore((state) => state.auth.user?.group ?? '')
   const videoModels = props.videoModels
   const prompt = props.prompt
   const isSubmitting = props.isSubmitting ?? false
@@ -102,33 +120,35 @@ export function VideoInputForm(props: VideoInputFormProps) {
   const [selectedModelName, setSelectedModelName] = useState(
     () => initialDraft?.model || videoModels[0]?.model || ''
   )
-  const [happyHorseState, setHappyHorseState] = useState<HappyHorseFormState | null>(
-    () => initialDraft?.happyHorse ?? null
-  )
+  const [happyHorseState, setHappyHorseState] =
+    useState<HappyHorseFormState | null>(() => initialDraft?.happyHorse ?? null)
   const [seedanceState, setSeedanceState] = useState<SeedanceFormState | null>(
     () => initialDraft?.seedance ?? null
   )
-  const [miniMaxH3State, setMiniMaxH3State] = useState<MiniMaxH3FormState | null>(
-    () => initialDraft?.miniMaxH3 ?? null
-  )
-  const [agnesVideoState, setAgnesVideoState] = useState<AgnesVideoFormState | null>(
-    () => initialDraft?.agnesVideo ?? null
+  const [miniMaxH3State, setMiniMaxH3State] =
+    useState<MiniMaxH3FormState | null>(() => initialDraft?.miniMaxH3 ?? null)
+  const [agnesVideoState, setAgnesVideoState] =
+    useState<AgnesVideoFormState | null>(() => initialDraft?.agnesVideo ?? null)
+  const [wan30State, setWan30State] = useState<Wan30FormState | null>(
+    () => initialDraft?.wan30 ?? null
   )
   const [genericState, setGenericState] = useState<GenericFormState | null>(
     () => initialDraft?.generic ?? null
   )
 
   const [tokens, setTokens] = useState<TokenOption[]>([])
+  const [inheritedAutoGroups, setInheritedAutoGroups] = useState<string[]>([])
   const [selectedTokenId, setSelectedTokenId] = useState<string>(
     () =>
       initialDraft?.tokenId ||
       loadStoredTokenId(STORAGE_KEYS_VIDEO.TOKEN_ID) ||
       ''
   )
-  const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+  const [isLoadingTokens, setIsLoadingTokens] = useState(true)
 
   const selectedModel = useMemo(
-    () => videoModels.find((m) => m.model === selectedModelName) ?? videoModels[0],
+    () =>
+      videoModels.find((m) => m.model === selectedModelName) ?? videoModels[0],
     [videoModels, selectedModelName]
   )
 
@@ -137,28 +157,41 @@ export function VideoInputForm(props: VideoInputFormProps) {
     return tokens.find((tk) => String(tk.id) === selectedTokenId)?.name ?? ''
   }, [tokens, selectedTokenId])
 
+  const compatibleTokens = useMemo(
+    () =>
+      getCompatibleTokens(
+        tokens,
+        selectedModel?.groups ?? [],
+        userGroup,
+        inheritedAutoGroups
+      ),
+    [tokens, selectedModel, userGroup, inheritedAutoGroups]
+  )
+
   useEffect(() => {
     setIsLoadingTokens(true)
-    getUserTokens()
-      .then((list) => {
+    Promise.all([
+      getUserTokens(),
+      getInheritedTokenAutoGroups().catch(() => []),
+    ])
+      .then(([list, autoGroups]) => {
         setTokens(list)
+        setInheritedAutoGroups(autoGroups)
         if (list.length === 0) {
           setSelectedTokenId('')
-          return
         }
-        setSelectedTokenId((current) => {
-          if (current && list.some((token) => String(token.id) === current)) {
-            return current
-          }
-          const saved = loadStoredTokenId(STORAGE_KEYS_VIDEO.TOKEN_ID)
-          if (saved && list.some((token) => String(token.id) === saved)) {
-            return saved
-          }
-          return String(list[0].id)
-        })
       })
       .finally(() => setIsLoadingTokens(false))
+      .catch(() => setTokens([]))
   }, [])
+
+  useEffect(() => {
+    if (isLoadingTokens || !selectedModel) return
+    const saved = loadStoredTokenId(STORAGE_KEYS_VIDEO.TOKEN_ID)
+    setSelectedTokenId((current) =>
+      selectCompatibleTokenId(compatibleTokens, current, saved)
+    )
+  }, [compatibleTokens, isLoadingTokens, selectedModel])
 
   useEffect(() => {
     if (videoModels.length === 0) return
@@ -179,6 +212,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       setSeedanceState(null)
       setMiniMaxH3State(null)
       setAgnesVideoState(null)
+      setWan30State(null)
       setGenericState(null)
       return
     }
@@ -191,6 +225,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       setHappyHorseState(null)
       setMiniMaxH3State(null)
       setAgnesVideoState(null)
+      setWan30State(null)
       setGenericState(null)
       return
     }
@@ -203,6 +238,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       setHappyHorseState(null)
       setSeedanceState(null)
       setAgnesVideoState(null)
+      setWan30State(null)
       setGenericState(null)
       return
     }
@@ -215,6 +251,20 @@ export function VideoInputForm(props: VideoInputFormProps) {
       setHappyHorseState(null)
       setSeedanceState(null)
       setMiniMaxH3State(null)
+      setWan30State(null)
+      setGenericState(null)
+      return
+    }
+    if (selectedModel.profile === 'wan30_video') {
+      setWan30State((current) =>
+        current?.model === selectedModel.model
+          ? current
+          : getDefaultWan30FormState(selectedModel)
+      )
+      setHappyHorseState(null)
+      setSeedanceState(null)
+      setMiniMaxH3State(null)
+      setAgnesVideoState(null)
       setGenericState(null)
       return
     }
@@ -227,6 +277,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
     setSeedanceState(null)
     setMiniMaxH3State(null)
     setAgnesVideoState(null)
+    setWan30State(null)
   }, [selectedModel])
 
   useEffect(() => {
@@ -242,6 +293,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       seedance: seedanceState,
       miniMaxH3: miniMaxH3State,
       agnesVideo: agnesVideoState,
+      wan30: wan30State,
       generic: genericState,
     })
   }, [
@@ -252,6 +304,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
     seedanceState,
     miniMaxH3State,
     agnesVideoState,
+    wan30State,
     genericState,
   ])
 
@@ -270,23 +323,45 @@ export function VideoInputForm(props: VideoInputFormProps) {
     hasProfileState = miniMaxH3State != null
   } else if (selectedModel?.profile === 'agnes_video') {
     hasProfileState = agnesVideoState != null
+  } else if (selectedModel?.profile === 'wan30_video') {
+    hasProfileState = wan30State != null
   } else if (selectedModel) {
     hasProfileState = genericState != null
   }
 
+  let hasVideoInput = !!prompt.trim()
+  if (selectedModel?.profile === 'wan30_video' && wan30State) {
+    if (wan30State.mode === 'first_frame') {
+      hasVideoInput = !!wan30State.firstFrameUrl?.trim()
+    } else if (wan30State.mode === 'first_last_frame') {
+      hasVideoInput =
+        !!wan30State.firstFrameUrl?.trim() && !!wan30State.lastFrameUrl?.trim()
+    } else if (wan30State.mode === 'reference') {
+      hasVideoInput =
+        hasVideoInput || wan30State.references.some((item) => !!item.url.trim())
+    } else if (wan30State.mode === 'file') {
+      hasVideoInput = !!wan30State.fileUrl?.trim()
+    } else if (wan30State.mode === 'link') {
+      hasVideoInput = !!wan30State.linkUrl?.trim()
+    }
+  }
+
   const canSubmit =
     !isSubmitting &&
-    !!prompt.trim() &&
+    hasVideoInput &&
     !!selectedTokenId &&
+    compatibleTokens.some((token) => String(token.id) === selectedTokenId) &&
     !!selectedModel &&
     hasProfileState
 
   const handleSubmit = async () => {
     if (isSubmitting || !selectedModel) return
-    if (!prompt.trim()) return
+    if (!hasVideoInput) return
     if (!selectedTokenId) return
 
-    const selectedToken = tokens.find((tk) => String(tk.id) === selectedTokenId)
+    const selectedToken = compatibleTokens.find(
+      (token) => String(token.id) === selectedTokenId
+    )
     if (!selectedToken) return
 
     const realKey = await fetchTokenKey(selectedToken.id)
@@ -298,6 +373,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
       | SeedanceFormState
       | MiniMaxH3FormState
       | AgnesVideoFormState
+      | Wan30FormState
       | GenericFormState
     if (profile === 'happyhorse') {
       formState = { ...(happyHorseState as HappyHorseFormState), prompt }
@@ -307,6 +383,8 @@ export function VideoInputForm(props: VideoInputFormProps) {
       formState = { ...(miniMaxH3State as MiniMaxH3FormState), prompt }
     } else if (profile === 'agnes_video') {
       formState = { ...(agnesVideoState as AgnesVideoFormState), prompt }
+    } else if (profile === 'wan30_video') {
+      formState = { ...(wan30State as Wan30FormState), prompt }
     } else {
       formState = { ...(genericState as GenericFormState), prompt }
     }
@@ -350,7 +428,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
           {t('API Key')}
         </Label>
         <Select
-          disabled={isLoadingTokens || tokens.length === 0}
+          disabled={isLoadingTokens || compatibleTokens.length === 0}
           value={selectedTokenId}
           onValueChange={(v) => {
             if (v != null) setSelectedTokenId(v)
@@ -366,17 +444,30 @@ export function VideoInputForm(props: VideoInputFormProps) {
             )}
           </SelectTrigger>
           <SelectContent>
-            {tokens.map((token) => (
+            {compatibleTokens.map((token) => (
               <SelectItem key={token.id} value={String(token.id)}>
-                {token.name}
+                {token.name} ({token.group || userGroup})
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {tokens.length === 0 && !isLoadingTokens && (
-          <p className='text-muted-foreground text-xs'>
-            {t('Please create an API key first in the Keys page.')}
-          </p>
+        {compatibleTokens.length === 0 && !isLoadingTokens && selectedModel && (
+          <div className='border-warning/40 bg-warning/5 flex items-center justify-between gap-3 rounded-md border p-2'>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'No API key can access this model. Create a key for one of these groups: {{groups}}.',
+                { groups: selectedModel.groups.join(', ') }
+              )}
+            </p>
+            <Button
+              size='sm'
+              variant='outline'
+              className='shrink-0'
+              render={<Link to='/keys' />}
+            >
+              {t('Create API Key')}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -407,7 +498,7 @@ export function VideoInputForm(props: VideoInputFormProps) {
         </Select>
         {selectedModel && (
           <p className='text-muted-foreground text-xs'>
-            {PROFILE_LABELS[selectedModel.profile]}
+            {t(PROFILE_LABELS[selectedModel.profile])}
           </p>
         )}
       </div>
@@ -473,6 +564,20 @@ export function VideoInputForm(props: VideoInputFormProps) {
             state={agnesVideoState}
             onChange={(patch) =>
               setAgnesVideoState((current) =>
+                current ? { ...current, ...patch } : current
+              )
+            }
+          />
+        )}
+
+      {selectedModel?.profile === 'wan30_video' &&
+        wan30State &&
+        isWan30VideoCapabilities(selectedModel.capabilities) && (
+          <Wan30VideoFields
+            capabilities={selectedModel.capabilities}
+            state={wan30State}
+            onChange={(patch) =>
+              setWan30State((current) =>
                 current ? { ...current, ...patch } : current
               )
             }

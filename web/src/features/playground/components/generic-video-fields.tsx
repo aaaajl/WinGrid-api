@@ -26,8 +26,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import type { GenericCapabilities } from '../../types'
-import type { GenericFormState } from '../../lib/video/build-video-request'
+import type { GenericCapabilities } from '../types'
+import type { GenericFormState } from '../lib/video/build-video-request'
 
 interface GenericVideoFieldsProps {
   capabilities: GenericCapabilities

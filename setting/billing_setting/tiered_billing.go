@@ -12,24 +12,28 @@ const (
 	BillingModeRatio       = "ratio"
 	BillingModeTieredExpr  = "tiered_expr"
 	BillingModePerDuration = "per_duration"
+	BillingModePeakOffPeak = "peak_offpeak"
 	BillingModeField       = "billing_mode"
 	BillingExprField       = "billing_expr"
 	DurationPricingField   = "duration_pricing"
+	PeakOffPeakPricingField = "peak_offpeak_pricing"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr,
-// billing_setting.duration_pricing
+// billing_setting.duration_pricing, billing_setting.peak_offpeak_pricing
 type BillingSetting struct {
-	BillingMode     map[string]string              `json:"billing_mode"`
-	BillingExpr     map[string]string              `json:"billing_expr"`
-	DurationPricing map[string]DurationPriceConfig `json:"duration_pricing"`
+	BillingMode        map[string]string              `json:"billing_mode"`
+	BillingExpr        map[string]string              `json:"billing_expr"`
+	DurationPricing    map[string]DurationPriceConfig `json:"duration_pricing"`
+	PeakOffPeakPricing map[string]PeakOffPeakConfig   `json:"peak_offpeak_pricing"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode:     make(map[string]string),
-	BillingExpr:     make(map[string]string),
-	DurationPricing: make(map[string]DurationPriceConfig),
+	BillingMode:        make(map[string]string),
+	BillingExpr:        make(map[string]string),
+	DurationPricing:    make(map[string]DurationPriceConfig),
+	PeakOffPeakPricing: make(map[string]PeakOffPeakConfig),
 }
 
 func init() {
@@ -61,7 +65,7 @@ func GetBillingExprCopy() map[string]string {
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {
-	extra := make(map[string]any, 3)
+	extra := make(map[string]any, 4)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
 		extra[BillingModeField] = modes
 	}
@@ -70,6 +74,9 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	}
 	if durationPricing := GetDurationPricingCopy(); len(durationPricing) > 0 {
 		extra[DurationPricingField] = durationPricing
+	}
+	if peakOffPeak := GetPeakOffPeakPricingCopy(); len(peakOffPeak) > 0 {
+		extra[PeakOffPeakPricingField] = peakOffPeak
 	}
 	return lo.Assign(base, extra)
 }

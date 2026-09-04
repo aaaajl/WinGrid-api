@@ -27,8 +27,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import type { MiniMaxH3FormState } from '../../lib/video/build-video-request'
-import type { MiniMaxH3Capabilities } from '../../types'
+import type { MiniMaxH3FormState } from '../lib/video/build-video-request'
+import type { MiniMaxH3Capabilities } from '../types'
 
 interface MiniMaxH3VideoFieldsProps {
   capabilities: MiniMaxH3Capabilities

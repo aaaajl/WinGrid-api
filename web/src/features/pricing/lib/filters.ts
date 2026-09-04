@@ -24,7 +24,8 @@ import {
   ENDPOINT_TYPES,
 } from '../constants'
 import type { PricingModel } from '../types'
-import { isPerDurationModel } from './model-helpers'
+import { isPeakOffPeakModel, isPerDurationModel } from './model-helpers'
+import { getPeakOffPeakSortPrice } from './peak-offpeak-price'
 import { getDurationStartingPriceUSD } from './price'
 
 // ----------------------------------------------------------------------------
@@ -104,6 +105,9 @@ export function filterByEndpointType(
  * Get model price for sorting
  */
 function getModelPrice(model: PricingModel): number {
+  if (isPeakOffPeakModel(model)) {
+    return getPeakOffPeakSortPrice(model)
+  }
   if (isPerDurationModel(model)) {
     return getDurationStartingPriceUSD(model) ?? Number.POSITIVE_INFINITY
   }

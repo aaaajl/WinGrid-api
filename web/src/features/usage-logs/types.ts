@@ -193,6 +193,26 @@ export interface LogOtherData {
   billing_mode?: string
   expr_b64?: string
   matched_tier?: string
+  /** RFC3339 eval clock for peak_offpeak */
+  billing_eval_at?: string
+  /** Applied period $/1M prices when billing_mode === 'peak_offpeak' */
+  peak_offpeak_input_price?: number
+  peak_offpeak_output_price?: number
+  peak_offpeak_cache_hit_price?: number
+  peak_offpeak_pricing?: {
+    timezone?: string
+    weekdays_only?: boolean
+    peak?: {
+      cache_hit: number
+      cache_miss: number
+      completion: number
+    }
+    off_peak?: {
+      cache_hit: number
+      cache_miss: number
+      completion: number
+    }
+  }
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number

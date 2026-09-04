@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
+	"github.com/QuantumNous/new-api/relay/channel/task/wan30video"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,14 @@ func TestGetTaskAdaptorSelectsAgnesVideo(t *testing.T) {
 	require.NotNil(t, adaptor)
 	assert.Equal(t, "Agnes Video", adaptor.GetChannelName())
 	assert.Contains(t, adaptor.GetModelList(), "agnes-video-v2.0")
+}
+
+func TestGetTaskAdaptorSelectsWan30Video(t *testing.T) {
+	adaptor := GetTaskAdaptor(constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeWan30Video)))
+
+	require.IsType(t, &wan30video.TaskAdaptor{}, adaptor)
+	assert.Contains(t, adaptor.GetModelList(), "wan3.0-video")
+	assert.Contains(t, adaptor.GetModelList(), "wan3.0-video-prime")
 }
 
 func TestGetTaskPlatformForModelSeparatesMiniMaxVideoVersions(t *testing.T) {

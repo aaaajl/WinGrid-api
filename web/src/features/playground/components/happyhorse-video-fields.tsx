@@ -28,8 +28,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import type { HappyHorseCapabilities } from '../../types'
-import type { HappyHorseFormState } from '../../lib/video/build-video-request'
+import type { HappyHorseCapabilities } from '../types'
+import type { HappyHorseFormState } from '../lib/video/build-video-request'
 
 interface HappyHorseVideoFieldsProps {
   capabilities: HappyHorseCapabilities

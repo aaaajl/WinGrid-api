@@ -13,6 +13,7 @@ const (
 	VideoProfileSeedance   = "seedance"
 	VideoProfileMiniMaxH3  = "minimax_h3"
 	VideoProfileAgnesVideo = "agnes_video"
+	VideoProfileWan30Video = "wan30_video"
 	VideoProfileGeneric    = "generic"
 )
 
@@ -27,6 +28,8 @@ func VideoRequestProfile(modelName string) string {
 		return VideoProfileMiniMaxH3
 	case strings.HasPrefix(strings.ToLower(modelName), "agnes-video-"):
 		return VideoProfileAgnesVideo
+	case strings.HasPrefix(strings.ToLower(modelName), "wan3.0-video"):
+		return VideoProfileWan30Video
 	default:
 		// Catalog models tagged t2v without a known vendor prefix use the
 		// generic TaskSubmitReq shape (prompt/size/duration).
@@ -101,7 +104,18 @@ func miniMaxH3Capabilities(_ string) dto.MiniMaxH3VideoCapabilities {
 	}
 }
 
-func agnesVideoCapabilities(_ string) dto.AgnesVideoCapabilities {
+func agnesVideoCapabilities(modelName string) dto.AgnesVideoCapabilities {
+	if isAgnesVideo25Model(modelName) {
+		return dto.AgnesVideoCapabilities{
+			SupportedSizes:  []string{"720P", "960P", "2K"},
+			SupportedRatios: []string{"21:9", "16:9", "4:3", "1:1", "3:4", "9:16"},
+			DurationRange:   [2]int{4, 12},
+			Fields: []string{
+				"size", "ratio", "duration", "seed", "image",
+			},
+			Form: "agnes_video",
+		}
+	}
 	return dto.AgnesVideoCapabilities{
 		SupportedSizes:  []string{"480P", "720P", "1080P"},
 		SupportedRatios: []string{"16:9", "9:16", "1:1"},
@@ -117,13 +131,36 @@ func agnesVideoCapabilities(_ string) dto.AgnesVideoCapabilities {
 	}
 }
 
+func isAgnesVideo25Model(modelName string) bool {
+	lower := strings.ToLower(modelName)
+	return strings.Contains(lower, "agnes-video-2.5") ||
+		strings.Contains(lower, "agnes-video-v2.5") ||
+		strings.Contains(lower, "agnes-video-2-5")
+}
+
+func wan30VideoCapabilities(_ string) dto.Wan30VideoCapabilities {
+	return dto.Wan30VideoCapabilities{
+		SupportedResolutions: []string{"480P", "720P", "1080P"},
+		SupportedRatios:      []string{"adaptive", "16:9", "4:3", "1:1", "3:4", "9:16"},
+		DurationRange:        [2]int{2, 30},
+		SmartDuration:        false,
+		MediaTypes: []string{
+			"first_frame", "last_frame", "reference_image", "reference_video",
+			"reference_audio", "file", "link",
+		},
+		Modes:  []string{"t2v", "first_frame", "first_last_frame", "reference", "file", "link"},
+		Fields: []string{"resolution", "ratio", "duration", "audio", "prompt_extend", "watermark", "seed", "media"},
+		Form:   "wan30_video",
+	}
+}
+
 func playgroundVideoLabel(_profile, modelName string) string {
 	return modelName
 }
 
-// ListPlaygroundVideoModels returns catalog-backed t2v models available to the user group.
+// ListPlaygroundVideoModels returns catalog-backed t2v models available via the user's usable groups.
 func ListPlaygroundVideoModels(group string) ([]dto.PlaygroundVideoModel, error) {
-	enabled := model.GetGroupEnabledModels(group)
+	enabled, modelGroups := GetUserUsableEnabledModelGroups(group)
 	if len(enabled) == 0 {
 		return []dto.PlaygroundVideoModel{}, nil
 	}
@@ -151,6 +188,7 @@ func ListPlaygroundVideoModels(group string) ([]dto.PlaygroundVideoModel, error)
 		item := dto.PlaygroundVideoModel{
 			Model:   meta.ModelName,
 			Tags:    ParseModelTags(meta.Tags),
+			Groups:  modelGroups[meta.ModelName],
 			Profile: profile,
 			Label:   playgroundVideoLabel(profile, meta.ModelName),
 		}
@@ -163,6 +201,8 @@ func ListPlaygroundVideoModels(group string) ([]dto.PlaygroundVideoModel, error)
 			item.Capabilities = miniMaxH3Capabilities(meta.ModelName)
 		case VideoProfileAgnesVideo:
 			item.Capabilities = agnesVideoCapabilities(meta.ModelName)
+		case VideoProfileWan30Video:
+			item.Capabilities = wan30VideoCapabilities(meta.ModelName)
 		default:
 			item.Capabilities = genericCapabilities(meta.ModelName)
 		}

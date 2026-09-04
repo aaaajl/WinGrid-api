@@ -91,13 +91,14 @@ func init() {
 		})
 	}
 	channelId2Models = make(map[int][]string)
-	channelTypesToRegister := make([]int, 0, constant.ChannelTypeDummy+2)
+	channelTypesToRegister := make([]int, 0, constant.ChannelTypeDummy+3)
 	for i := 1; i <= constant.ChannelTypeDummy; i++ {
 		channelTypesToRegister = append(channelTypesToRegister, i)
 	}
 	channelTypesToRegister = append(channelTypesToRegister,
 		constant.ChannelTypeHappyHorse,
 		constant.ChannelTypeAgnesVideo,
+		constant.ChannelTypeWan30Video,
 	)
 	for _, i := range channelTypesToRegister {
 		apiType, success := common.ChannelType2APIType(i)

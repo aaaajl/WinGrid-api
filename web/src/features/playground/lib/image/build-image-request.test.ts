@@ -19,8 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 
-import { buildImageRequest, getDefaultImageFormState } from './build-image-request'
 import type { PlaygroundImageModel } from '../../types'
+import {
+  buildImageRequest,
+  getDefaultImageFormState,
+} from './build-image-request'
 
 describe('buildImageRequest', () => {
   test('builds OpenAI images generations payload', () => {
@@ -65,6 +68,7 @@ describe('buildImageRequest', () => {
     const model: PlaygroundImageModel = {
       model: 'dall-e-3',
       tags: ['t2i'],
+      groups: ['default'],
       profile: 'dalle3',
       label: 'dall-e-3',
       capabilities: {

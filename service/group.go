@@ -1,6 +1,7 @@
 package service
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -119,6 +120,28 @@ func GetGroupsEnabledModels(groups []string) []string {
 		}
 	}
 	return models
+}
+
+// GetUserUsableEnabledModelGroups returns enabled models and their usable groups.
+func GetUserUsableEnabledModelGroups(userGroup string) ([]string, map[string][]string) {
+	usable := GetUserUsableGroups(userGroup)
+	groups := make([]string, 0, len(usable))
+	for group := range usable {
+		groups = append(groups, group)
+	}
+	sort.Strings(groups)
+
+	models := make([]string, 0)
+	modelGroups := make(map[string][]string)
+	for _, group := range groups {
+		for _, modelName := range model.GetGroupEnabledModels(group) {
+			if _, ok := modelGroups[modelName]; !ok {
+				models = append(models, modelName)
+			}
+			modelGroups[modelName] = append(modelGroups[modelName], group)
+		}
+	}
+	return models, modelGroups
 }
 
 // GetUserGroupRatio 获取用户使用某个分组的倍率

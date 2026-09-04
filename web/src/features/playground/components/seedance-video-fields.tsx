@@ -28,8 +28,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import type { SeedanceFormState } from '../../lib/video/build-video-request'
-import type { SeedanceCapabilities } from '../../types'
+import type { SeedanceFormState } from '../lib/video/build-video-request'
+import type { SeedanceCapabilities } from '../types'
 
 interface SeedanceVideoFieldsProps {
   capabilities: SeedanceCapabilities

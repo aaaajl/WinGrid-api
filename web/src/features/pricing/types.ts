@@ -59,6 +59,22 @@ export type PricingModel = {
     fallback_price: number
     size_prices?: Record<string, number>
   }
+  /** Peak/off-peak pricing when billing_mode is "peak_offpeak" */
+  peak_offpeak_pricing?: {
+    timezone: string
+    weekdays_only: boolean
+    peak_windows: string[]
+    peak: {
+      cache_hit: number
+      cache_miss: number
+      completion: number
+    }
+    off_peak: {
+      cache_hit: number
+      cache_miss: number
+      completion: number
+    }
+  }
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**

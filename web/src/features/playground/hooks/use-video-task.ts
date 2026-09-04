@@ -86,10 +86,11 @@ export function useVideoTask() {
         try {
           const res = await fetchVideoTaskStatus(id, apiKey)
           // Keep tasks visible while backend is still on NOT_START / unknown.
+          const upstreamStatus = res.status as typeof res.status | 'unknown'
           const status =
-            res.status === 'unknown' || !res.status
+            upstreamStatus === 'unknown' || !upstreamStatus
               ? 'queued'
-              : res.status
+              : upstreamStatus
           const metadataUrl =
             typeof res.metadata?.url === 'string' ? res.metadata.url.trim() : ''
           const isProxyContentUrl =

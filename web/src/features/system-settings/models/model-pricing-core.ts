@@ -44,6 +44,7 @@ export type PricingMode =
   | 'per-request'
   | 'tiered_expr'
   | 'per_duration'
+  | 'peak_offpeak'
 
 export type DurationSizePriceRow = {
   size: string
@@ -57,6 +58,196 @@ export const DEFAULT_DURATION_SIZE_PRICES: DurationSizePriceRow[] = [
   { size: '1080P', price: '2' },
   { size: '4K', price: '10' },
 ]
+
+export type PeakOffPeakTokenPriceForm = {
+  cacheHit: string
+  cacheMiss: string
+  completion: string
+}
+
+export type PeakOffPeakWindowForm = {
+  start: string
+  end: string
+}
+
+export type PeakOffPeakFormValues = {
+  timezone: string
+  weekdaysOnly: boolean
+  peakWindows: PeakOffPeakWindowForm[]
+  peak: PeakOffPeakTokenPriceForm
+  offPeak: PeakOffPeakTokenPriceForm
+}
+
+export type PeakOffPeakConfig = {
+  timezone: string
+  weekdays_only: boolean
+  peak_windows: Array<{ start: string; end: string }>
+  peak: {
+    cache_hit: number
+    cache_miss: number
+    completion: number
+  }
+  off_peak: {
+    cache_hit: number
+    cache_miss: number
+    completion: number
+  }
+}
+
+export const DEFAULT_PEAK_OFFPEAK_TIMEZONE = 'Asia/Shanghai'
+
+export const DEFAULT_PEAK_WINDOWS: PeakOffPeakWindowForm[] = [
+  { start: '09:00', end: '12:00' },
+  { start: '14:00', end: '18:00' },
+]
+
+export const DEFAULT_PEAK_OFFPEAK_FORM: PeakOffPeakFormValues = {
+  timezone: DEFAULT_PEAK_OFFPEAK_TIMEZONE,
+  weekdaysOnly: true,
+  peakWindows: DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w })),
+  peak: {
+    cacheHit: '0.014',
+    cacheMiss: '0.44',
+    completion: '1.32',
+  },
+  offPeak: {
+    cacheHit: '0.007',
+    cacheMiss: '0.22',
+    completion: '0.66',
+  },
+}
+
+export const DEEPSEEK_FLASH_PEAK_OFFPEAK_FORM: PeakOffPeakFormValues = {
+  ...DEFAULT_PEAK_OFFPEAK_FORM,
+  peakWindows: DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w })),
+  peak: { ...DEFAULT_PEAK_OFFPEAK_FORM.peak },
+  offPeak: { ...DEFAULT_PEAK_OFFPEAK_FORM.offPeak },
+}
+
+export const DEEPSEEK_PRO_PEAK_OFFPEAK_FORM: PeakOffPeakFormValues = {
+  timezone: DEFAULT_PEAK_OFFPEAK_TIMEZONE,
+  weekdaysOnly: true,
+  peakWindows: DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w })),
+  peak: {
+    cacheHit: '0.044',
+    cacheMiss: '1.32',
+    completion: '3.96',
+  },
+  offPeak: {
+    cacheHit: '0.022',
+    cacheMiss: '0.66',
+    completion: '1.98',
+  },
+}
+
+export function clonePeakOffPeakForm(
+  form: PeakOffPeakFormValues
+): PeakOffPeakFormValues {
+  return {
+    timezone: form.timezone,
+    weekdaysOnly: form.weekdaysOnly,
+    peakWindows: form.peakWindows.map((w) => ({ ...w })),
+    peak: { ...form.peak },
+    offPeak: { ...form.offPeak },
+  }
+}
+
+export function peakOffPeakConfigToForm(
+  cfg?: PeakOffPeakConfig | null
+): PeakOffPeakFormValues {
+  if (!cfg) return clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM)
+  const windows =
+    cfg.peak_windows?.length > 0
+      ? cfg.peak_windows.map((w) => ({
+          start: w.start || '',
+          end: w.end || '',
+        }))
+      : DEFAULT_PEAK_WINDOWS.map((w) => ({ ...w }))
+  return {
+    timezone: cfg.timezone || DEFAULT_PEAK_OFFPEAK_TIMEZONE,
+    weekdaysOnly: cfg.weekdays_only !== false,
+    peakWindows: windows,
+    peak: {
+      cacheHit: String(cfg.peak?.cache_hit ?? ''),
+      cacheMiss: String(cfg.peak?.cache_miss ?? ''),
+      completion: String(cfg.peak?.completion ?? ''),
+    },
+    offPeak: {
+      cacheHit: String(cfg.off_peak?.cache_hit ?? ''),
+      cacheMiss: String(cfg.off_peak?.cache_miss ?? ''),
+      completion: String(cfg.off_peak?.completion ?? ''),
+    },
+  }
+}
+
+export function peakOffPeakFormToConfig(
+  form: PeakOffPeakFormValues
+): PeakOffPeakConfig | null {
+  const parsePrice = (value: string) => {
+    const num = toNumberOrNull(value)
+    return num !== null && num >= 0 ? num : null
+  }
+
+  const peakCacheHit = parsePrice(form.peak.cacheHit)
+  const peakCacheMiss = parsePrice(form.peak.cacheMiss)
+  const peakCompletion = parsePrice(form.peak.completion)
+  const offCacheHit = parsePrice(form.offPeak.cacheHit)
+  const offCacheMiss = parsePrice(form.offPeak.cacheMiss)
+  const offCompletion = parsePrice(form.offPeak.completion)
+
+  if (
+    peakCacheHit === null ||
+    peakCacheMiss === null ||
+    peakCompletion === null ||
+    offCacheHit === null ||
+    offCacheMiss === null ||
+    offCompletion === null
+  ) {
+    return null
+  }
+
+  const windows = form.peakWindows
+    .map((w) => ({
+      start: w.start.trim(),
+      end: w.end.trim(),
+    }))
+    .filter((w) => w.start !== '' && w.end !== '')
+
+  if (windows.length === 0) return null
+
+  return {
+    timezone: form.timezone.trim() || DEFAULT_PEAK_OFFPEAK_TIMEZONE,
+    weekdays_only: form.weekdaysOnly,
+    peak_windows: windows,
+    peak: {
+      cache_hit: peakCacheHit,
+      cache_miss: peakCacheMiss,
+      completion: peakCompletion,
+    },
+    off_peak: {
+      cache_hit: offCacheHit,
+      cache_miss: offCacheMiss,
+      completion: offCompletion,
+    },
+  }
+}
+
+export const PEAK_OFFPEAK_TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/
+
+export function fillOffPeakFromPeak(
+  peak: PeakOffPeakTokenPriceForm
+): PeakOffPeakTokenPriceForm {
+  const scale = (value: string) => {
+    const num = toNumberOrNull(value)
+    if (num === null) return ''
+    return formatPricingNumber(num * 0.5)
+  }
+  return {
+    cacheHit: scale(peak.cacheHit),
+    cacheMiss: scale(peak.cacheMiss),
+    completion: scale(peak.completion),
+  }
+}
 
 export type LaneKey =
   | 'completion'
@@ -81,6 +272,7 @@ export type ModelRatioData = {
   requestRuleExpr?: string
   fallbackPrice?: string
   sizePrices?: DurationSizePriceRow[]
+  peakOffPeak?: PeakOffPeakFormValues
 }
 
 export type PreviewRow = {
@@ -236,7 +428,8 @@ export function buildPreviewRows(
   laneEnabled: Record<LaneKey, boolean>,
   t: (key: string) => string,
   fallbackPrice = '',
-  sizePrices: DurationSizePriceRow[] = []
+  sizePrices: DurationSizePriceRow[] = [],
+  peakOffPeak: PeakOffPeakFormValues = DEFAULT_PEAK_OFFPEAK_FORM
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
     const effectiveExpr = combineBillingExpr(billingExpr, requestRuleExpr)
@@ -267,6 +460,40 @@ export function buildPreviewRows(
         label: t('Size prices'),
         value: sizeLines.length > 0 ? sizeLines.join('\n') : t('Empty'),
         multiline: true,
+      },
+    ]
+  }
+
+  if (mode === 'peak_offpeak') {
+    const windowLines = peakOffPeak.peakWindows
+      .filter((w) => w.start.trim() && w.end.trim())
+      .map((w) => `${w.start.trim()}-${w.end.trim()}`)
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'peak_offpeak' },
+      {
+        key: 'timezone',
+        label: t('Timezone'),
+        value: peakOffPeak.timezone || t('Empty'),
+      },
+      {
+        key: 'weekdays',
+        label: t('Weekdays only'),
+        value: peakOffPeak.weekdaysOnly ? t('Yes') : t('No'),
+      },
+      {
+        key: 'windows',
+        label: t('Peak windows'),
+        value: windowLines.length > 0 ? windowLines.join(', ') : t('Empty'),
+      },
+      {
+        key: 'peak',
+        label: t('Peak'),
+        value: `in $${peakOffPeak.peak.cacheMiss || '0'} / out $${peakOffPeak.peak.completion || '0'}`,
+      },
+      {
+        key: 'offPeak',
+        label: t('Off-peak'),
+        value: `in $${peakOffPeak.offPeak.cacheMiss || '0'} / out $${peakOffPeak.offPeak.completion || '0'}`,
       },
     ]
   }

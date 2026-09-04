@@ -19,13 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import { PlaygroundChat } from './components/chat/playground-chat'
-import { PlaygroundInput } from './components/input/playground-input'
-import { ImageInputForm } from './components/image-input-form'
 import {
   ImageHistoryList,
   ImageResultPreview,
 } from './components/image-history-list'
+import { ImageInputForm } from './components/image-input-form'
+import { PlaygroundInput } from './components/input/playground-input'
 import { VideoInputForm } from './components/video-input-form'
 import { VideoPlayer } from './components/video-player'
 import { VideoTaskQueue } from './components/video-task-queue'
@@ -48,9 +53,6 @@ import {
   saveVideoPreviewTaskId,
   type PlaygroundTab,
 } from './lib/storage/ui-draft'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import type {
   ImageGenerationRequest,
   ImageRequestProfile,
@@ -119,8 +121,14 @@ export function Playground() {
     sendChat,
   })
 
-  const { tasks, isSubmitting, submitError, submitTask, clearFinishedTasks, removeTask } =
-    useVideoTask()
+  const {
+    tasks,
+    isSubmitting,
+    submitError,
+    submitTask,
+    clearFinishedTasks,
+    removeTask,
+  } = useVideoTask()
   const [previewTask, setPreviewTask] = useState<VideoTaskItem | null>(() => {
     const previewId = loadVideoPreviewTaskId()
     if (!previewId) return null
@@ -179,6 +187,7 @@ export function Playground() {
       seedance: draft?.seedance ?? null,
       miniMaxH3: draft?.miniMaxH3 ?? null,
       agnesVideo: draft?.agnesVideo ?? null,
+      wan30: draft?.wan30 ?? null,
       generic: draft?.generic ?? null,
     })
   }, [videoPrompt])
@@ -196,9 +205,7 @@ export function Playground() {
     const seen = autoPreviewedRef.current
     const newlyCompleted = tasks.find(
       (task) =>
-        task.status === 'completed' &&
-        task.videoUrl &&
-        !seen.has(task.id)
+        task.status === 'completed' && task.videoUrl && !seen.has(task.id)
     )
     if (newlyCompleted) {
       seen.add(newlyCompleted.id)

@@ -16,15 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { STORAGE_KEYS, STORAGE_KEYS_IMAGE, STORAGE_KEYS_VIDEO } from '../../constants'
+import {
+  STORAGE_KEYS,
+  STORAGE_KEYS_IMAGE,
+  STORAGE_KEYS_VIDEO,
+} from '../../constants'
+import type { ImageFormState } from '../image/build-image-request'
 import type {
   AgnesVideoFormState,
   GenericFormState,
   HappyHorseFormState,
   MiniMaxH3FormState,
   SeedanceFormState,
+  Wan30FormState,
 } from '../video/build-video-request'
-import type { ImageFormState } from '../image/build-image-request'
 
 export type PlaygroundTab = 'chat' | 'image' | 'video'
 
@@ -36,6 +41,7 @@ export interface VideoDraft {
   seedance: SeedanceFormState | null
   miniMaxH3: MiniMaxH3FormState | null
   agnesVideo: AgnesVideoFormState | null
+  wan30: Wan30FormState | null
   generic: GenericFormState | null
 }
 
@@ -88,6 +94,7 @@ export function loadVideoDraft(): VideoDraft | null {
     seedance: draft.seedance ?? null,
     miniMaxH3: draft.miniMaxH3 ?? null,
     agnesVideo: draft.agnesVideo ?? null,
+    wan30: draft.wan30 ?? null,
     generic: draft.generic ?? null,
   }
 }

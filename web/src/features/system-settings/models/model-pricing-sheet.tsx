@@ -66,23 +66,29 @@ import { cn } from '@/lib/utils'
 import {
   DEFAULT_DURATION_FALLBACK_PRICE,
   DEFAULT_DURATION_SIZE_PRICES,
+  DEFAULT_PEAK_OFFPEAK_FORM,
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
+  PEAK_OFFPEAK_TIME_REGEX,
   buildPreviewRows,
+  clonePeakOffPeakForm,
   createInitialLaneState,
   createModelPricingSchema,
   hasValue,
   laneConfigs,
   numericDraftRegex,
+  peakOffPeakFormToConfig,
   ratioFieldByLane,
   toNumberOrNull,
   type DurationSizePriceRow,
   type LaneKey,
   type ModelPricingFormValues,
   type ModelRatioData,
+  type PeakOffPeakFormValues,
   type PricingMode,
 } from './model-pricing-core'
 import { PriceInput, PriceLane } from './model-pricing-inputs'
+import { PeakOffPeakPricingForm } from './peak-offpeak-pricing-form'
 import { formatPricingNumber } from './pricing-format'
 import { TieredPricingEditor } from './tiered-pricing-editor'
 
@@ -164,6 +170,9 @@ export const ModelPricingEditorPanel = forwardRef<
   const [sizePrices, setSizePrices] = useState<DurationSizePriceRow[]>(
     DEFAULT_DURATION_SIZE_PRICES
   )
+  const [peakOffPeak, setPeakOffPeak] = useState<PeakOffPeakFormValues>(() =>
+    clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM)
+  )
   const [editorReloadToken, setEditorReloadToken] = useState(0)
   const isEditMode = !!editData
 
@@ -197,15 +206,17 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.billingMode === 'per_duration'
-            ? 'per_duration'
-            : editData.price
-              ? 'per-request'
-              : 'per-token'
-      )
+      let nextMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') {
+        nextMode = 'tiered_expr'
+      } else if (editData.billingMode === 'per_duration') {
+        nextMode = 'per_duration'
+      } else if (editData.billingMode === 'peak_offpeak') {
+        nextMode = 'peak_offpeak'
+      } else if (editData.price) {
+        nextMode = 'per-request'
+      }
+      setPricingMode(nextMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
       setFallbackPrice(
@@ -215,6 +226,11 @@ export const ModelPricingEditorPanel = forwardRef<
         editData.sizePrices && editData.sizePrices.length > 0
           ? editData.sizePrices
           : DEFAULT_DURATION_SIZE_PRICES
+      )
+      setPeakOffPeak(
+        editData.peakOffPeak
+          ? clonePeakOffPeakForm(editData.peakOffPeak)
+          : clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM)
       )
     } else {
       form.reset({
@@ -233,6 +249,7 @@ export const ModelPricingEditorPanel = forwardRef<
       setRequestRuleExpr('')
       setFallbackPrice(DEFAULT_DURATION_FALLBACK_PRICE)
       setSizePrices(DEFAULT_DURATION_SIZE_PRICES)
+      setPeakOffPeak(clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM))
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -367,6 +384,9 @@ export const ModelPricingEditorPanel = forwardRef<
         setSizePrices(DEFAULT_DURATION_SIZE_PRICES)
       }
     }
+    if (nextMode === 'peak_offpeak' && peakOffPeak.peakWindows.length === 0) {
+      setPeakOffPeak(clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM))
+    }
   }
 
   const watchedValues = form.watch()
@@ -382,13 +402,15 @@ export const ModelPricingEditorPanel = forwardRef<
         laneEnabled,
         t,
         fallbackPrice,
-        sizePrices
+        sizePrices,
+        peakOffPeak
       ),
     [
       billingExpr,
       fallbackPrice,
       laneEnabled,
       lanePrices,
+      peakOffPeak,
       pricingMode,
       promptPrice,
       requestRuleExpr,
@@ -488,12 +510,48 @@ export const ModelPricingEditorPanel = forwardRef<
       }
     }
 
+    if (pricingMode === 'peak_offpeak') {
+      if (!peakOffPeak.timezone.trim()) {
+        form.setError('price', {
+          message: t('Timezone is required.'),
+        })
+        return false
+      }
+      const windows = peakOffPeak.peakWindows.filter(
+        (w) => w.start.trim() || w.end.trim()
+      )
+      if (windows.length === 0) {
+        form.setError('price', {
+          message: t('At least one peak window is required.'),
+        })
+        return false
+      }
+      for (const window of windows) {
+        if (
+          !PEAK_OFFPEAK_TIME_REGEX.test(window.start.trim()) ||
+          !PEAK_OFFPEAK_TIME_REGEX.test(window.end.trim())
+        ) {
+          form.setError('price', {
+            message: t('Peak windows must use HH:MM format.'),
+          })
+          return false
+        }
+      }
+      if (!peakOffPeakFormToConfig(peakOffPeak)) {
+        form.setError('price', {
+          message: t('Peak and off-peak prices must be non-negative numbers.'),
+        })
+        return false
+      }
+    }
+
     return true
   }, [
     fallbackPrice,
     form,
     laneEnabled,
     lanePrices,
+    peakOffPeak,
     pricingMode,
     promptPrice,
     sizePrices,
@@ -530,9 +588,20 @@ export const ModelPricingEditorPanel = forwardRef<
           .filter((row) => row.size !== '')
       }
 
+      if (pricingMode === 'peak_offpeak') {
+        data.peakOffPeak = clonePeakOffPeakForm(peakOffPeak)
+      }
+
       return data
     },
-    [billingExpr, fallbackPrice, pricingMode, requestRuleExpr, sizePrices]
+    [
+      billingExpr,
+      fallbackPrice,
+      peakOffPeak,
+      pricingMode,
+      requestRuleExpr,
+      sizePrices,
+    ]
   )
 
   useImperativeHandle(
@@ -616,7 +685,7 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-2 sm:grid-cols-4'>
+                  <TabsList className='grid w-full grid-cols-2 sm:grid-cols-5'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
@@ -628,6 +697,9 @@ export const ModelPricingEditorPanel = forwardRef<
                     </TabsTrigger>
                     <TabsTrigger value='per_duration'>
                       {t('Per-duration')}
+                    </TabsTrigger>
+                    <TabsTrigger value='peak_offpeak'>
+                      {t('Peak / Off-peak')}
                     </TabsTrigger>
                   </TabsList>
 
@@ -826,6 +898,13 @@ export const ModelPricingEditorPanel = forwardRef<
                         </div>
                       </Field>
                     </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='peak_offpeak' className='pt-0'>
+                    <PeakOffPeakPricingForm
+                      value={peakOffPeak}
+                      onChange={setPeakOffPeak}
+                    />
                   </TabsContent>
                 </Tabs>
               </FieldGroup>

@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -234,8 +233,10 @@ func TestConvertToAgnesRequest_Defaults(t *testing.T) {
 		Duration: 5,
 		Size:     "720P",
 	}
-	out, err := convertToAgnesRequest(info, req)
+	raw, err := convertToAgnesRequest(info, req)
 	require.NoError(t, err)
+	out, ok := raw.(*createRequestV20)
+	require.True(t, ok)
 	require.NotNil(t, out.Width)
 	require.NotNil(t, out.Height)
 	require.NotNil(t, out.NumFrames)
@@ -245,6 +246,89 @@ func TestConvertToAgnesRequest_Defaults(t *testing.T) {
 	assert.Equal(t, DefaultHeight, *out.Height)
 	assert.Equal(t, 121, *out.NumFrames)
 	assert.Equal(t, DefaultFrameRate, *out.FrameRate)
+}
+
+func TestConvertToAgnesRequest_V25UsesSizeAndAspectRatio(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "agnes-video-2.5",
+		},
+	}
+	req := relaycommon.TaskSubmitReq{
+		Prompt:   "neon city after rain",
+		Duration: 5,
+		Size:     "720P",
+		Metadata: map[string]any{
+			"aspect_ratio": "16:9",
+			"seed":         1101,
+		},
+	}
+	raw, err := convertToAgnesRequest(info, req)
+	require.NoError(t, err)
+	out, ok := raw.(*createRequestV25)
+	require.True(t, ok)
+
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), `"height"`)
+	assert.NotContains(t, string(body), `"width"`)
+	assert.NotContains(t, string(body), `"num_frames"`)
+	assert.NotContains(t, string(body), `"frame_rate"`)
+
+	assert.Equal(t, "agnes-video-2.5", out.Model)
+	assert.Equal(t, "text", out.Mode)
+	assert.Equal(t, "5", out.Seconds)
+	assert.Equal(t, "720P", out.Size)
+	assert.Equal(t, "16:9", out.AspectRatio)
+	require.NotNil(t, out.Seed)
+	assert.Equal(t, 1101, *out.Seed)
+}
+
+func TestConvertToAgnesRequest_V25RecoversWxHSize(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "agnes-video-2.5",
+		},
+	}
+	req := relaycommon.TaskSubmitReq{
+		Prompt:   "a bird",
+		Duration: 5,
+		Size:     "1280x720",
+	}
+	raw, err := convertToAgnesRequest(info, req)
+	require.NoError(t, err)
+	out, ok := raw.(*createRequestV25)
+	require.True(t, ok)
+	assert.Equal(t, "720P", out.Size)
+	assert.Equal(t, "16:9", out.AspectRatio)
+	assert.Equal(t, "text", out.Mode)
+}
+
+func TestConvertToAgnesRequest_V25MapsImageToKeyframe(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "agnes-video-2.5",
+		},
+	}
+	req := relaycommon.TaskSubmitReq{
+		Prompt:   "person walks to the window",
+		Duration: 5,
+		Size:     "960P",
+		Image:    "https://example.com/first.png",
+		Metadata: map[string]any{"aspect_ratio": "9:16"},
+	}
+	raw, err := convertToAgnesRequest(info, req)
+	require.NoError(t, err)
+	out, ok := raw.(*createRequestV25)
+	require.True(t, ok)
+	assert.Equal(t, "keyframe", out.Mode)
+	assert.Equal(t, "https://example.com/first.png", out.FirstFrame)
+	assert.Equal(t, "960P", out.Size)
+	assert.Equal(t, "9:16", out.AspectRatio)
+
+	body, err := common.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), `"image"`)
 }
 
 func TestEstimateBilling_UsesDuration(t *testing.T) {

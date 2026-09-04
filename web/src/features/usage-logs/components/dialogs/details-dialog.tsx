@@ -225,6 +225,7 @@ function BillingBreakdown(props: {
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isPeakOffPeak = other.billing_mode === 'peak_offpeak'
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -254,6 +255,51 @@ function BillingBreakdown(props: {
       rows.push({
         label: t('Matched Tier'),
         value: t('No matching results'),
+      })
+    }
+  } else if (isPeakOffPeak) {
+    rows.push({
+      label: t('Billing Mode'),
+      value: t('Peak / Off-peak'),
+    })
+    const matched =
+      other.matched_tier === 'peak'
+        ? t('Peak')
+        : other.matched_tier === 'off_peak'
+          ? t('Off-peak')
+          : other.matched_tier
+    if (matched) {
+      rows.push({
+        label: t('Matched Tier'),
+        value: matched,
+      })
+    }
+    if (other.peak_offpeak_input_price != null) {
+      rows.push({
+        label: t('Input'),
+        value: `${fmtPrice(other.peak_offpeak_input_price)}/M`,
+      })
+    }
+    if (other.peak_offpeak_output_price != null) {
+      rows.push({
+        label: t('Output'),
+        value: `${fmtPrice(other.peak_offpeak_output_price)}/M`,
+      })
+    }
+    if (
+      other.peak_offpeak_cache_hit_price != null &&
+      other.cache_tokens != null &&
+      other.cache_tokens > 0
+    ) {
+      rows.push({
+        label: t('Cache hit'),
+        value: `${fmtPrice(other.peak_offpeak_cache_hit_price)}/M`,
+      })
+    }
+    if (other.billing_eval_at) {
+      rows.push({
+        label: t('Billing time'),
+        value: other.billing_eval_at,
       })
     }
   } else if (isPerCall) {
@@ -290,7 +336,7 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
+  if (!isTieredExpr && !isPeakOffPeak && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
         label: t('Cache Read'),
@@ -326,7 +372,7 @@ function BillingBreakdown(props: {
     }
   }
 
-  if (!isTieredExpr) {
+  if (!isTieredExpr && !isPeakOffPeak) {
     if (other.audio_ratio != null && other.audio_ratio !== 1) {
       rows.push({
         label: t('Audio input'),

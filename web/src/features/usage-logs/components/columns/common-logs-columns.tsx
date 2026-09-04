@@ -160,6 +160,7 @@ function buildTypeDetailSegments(
     return showUnit ? `${text}/M` : text
   }
   const isTieredExpr = other.billing_mode === 'tiered_expr'
+  const isPeakOffPeak = other.billing_mode === 'peak_offpeak'
   const tieredSummary = getTieredBillingSummary(other)
   if (isTieredExpr) {
     if (tieredSummary) {
@@ -211,6 +212,29 @@ function buildTypeDetailSegments(
       segments.push({
         text: `${t('Dynamic Pricing')} · ${t('No matching results')}`,
         muted: true,
+      })
+    }
+  } else if (isPeakOffPeak) {
+    const matched =
+      other.matched_tier === 'peak'
+        ? t('Peak')
+        : other.matched_tier === 'off_peak'
+          ? t('Off-peak')
+          : other.matched_tier || t('Peak / Off-peak')
+    const priceParts: string[] = []
+    if (other.peak_offpeak_input_price != null) {
+      priceParts.push(formatPriceCompact(other.peak_offpeak_input_price))
+    }
+    if (other.peak_offpeak_output_price != null) {
+      priceParts.push(formatPriceCompact(other.peak_offpeak_output_price))
+    }
+    if (priceParts.length > 0) {
+      segments.push({
+        text: `${matched} · ${formatPriceList(priceParts, true)}`,
+      })
+    } else {
+      segments.push({
+        text: `${t('Peak / Off-peak')} · ${matched}`,
       })
     }
   } else {

@@ -95,9 +95,9 @@ func imageCapabilitiesForProfile(profile, modelName string) dto.ImageCapabilitie
 	}
 }
 
-// ListPlaygroundImageModels returns catalog-backed t2i models available to the user group.
+// ListPlaygroundImageModels returns catalog-backed t2i models available via the user's usable groups.
 func ListPlaygroundImageModels(group string) ([]dto.PlaygroundImageModel, error) {
-	enabled := model.GetGroupEnabledModels(group)
+	enabled, modelGroups := GetUserUsableEnabledModelGroups(group)
 	if len(enabled) == 0 {
 		return []dto.PlaygroundImageModel{}, nil
 	}
@@ -124,6 +124,7 @@ func ListPlaygroundImageModels(group string) ([]dto.PlaygroundImageModel, error)
 		out = append(out, dto.PlaygroundImageModel{
 			Model:        meta.ModelName,
 			Tags:         ParseModelTags(meta.Tags),
+			Groups:       modelGroups[meta.ModelName],
 			Profile:      profile,
 			Label:        meta.ModelName,
 			Capabilities: imageCapabilitiesForProfile(profile, meta.ModelName),

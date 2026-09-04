@@ -9,61 +9,25 @@ function stableStringify(obj) {
 
 const newKeys = {
   en: {
-    From: 'From',
-    'No size prices configured.': 'No size prices configured.',
-    'Per Duration': 'Per Duration',
-    sec: 'sec',
-    'Starting price per second; final charge = rate × duration':
-      'Starting price per second; final charge = rate × duration',
+    'Billing time': 'Billing time',
   },
   zh: {
-    From: '起',
-    'No size prices configured.': '尚未配置分辨率单价。',
-    'Per Duration': '按时长',
-    sec: '秒',
-    'Starting price per second; final charge = rate × duration':
-      '展示起步价（美元/秒）；实际扣费 = 单价 × 时长',
+    'Billing time': '计费时刻',
   },
   'zh-TW': {
-    From: '起',
-    'No size prices configured.': '尚未設定解析度單價。',
-    'Per Duration': '按時長',
-    sec: '秒',
-    'Starting price per second; final charge = rate × duration':
-      '顯示起步價（美元/秒）；實際扣費 = 單價 × 時長',
+    'Billing time': '計費時刻',
   },
   fr: {
-    From: 'À partir de',
-    'No size prices configured.':
-      'Aucun prix par résolution n’est configuré.',
-    'Per Duration': 'Par durée',
-    sec: 's',
-    'Starting price per second; final charge = rate × duration':
-      'Prix de départ par seconde ; montant final = tarif × durée',
+    'Billing time': 'Heure de facturation',
   },
   ja: {
-    From: 'から',
-    'No size prices configured.': '解像度単価が設定されていません。',
-    'Per Duration': '時間課金',
-    sec: '秒',
-    'Starting price per second; final charge = rate × duration':
-      '秒単価の最低価格を表示します。実際の請求 = 単価 × 秒数',
+    'Billing time': '課金時刻',
   },
   ru: {
-    From: 'От',
-    'No size prices configured.': 'Цены по разрешению не настроены.',
-    'Per Duration': 'По длительности',
-    sec: 'с',
-    'Starting price per second; final charge = rate × duration':
-      'Стартовая цена за секунду; итог = ставка × длительность',
+    'Billing time': 'Время тарификации',
   },
   vi: {
-    From: 'Từ',
-    'No size prices configured.': 'Chưa cấu hình đơn giá theo độ phân giải.',
-    'Per Duration': 'Theo thời lượng',
-    sec: 'giây',
-    'Starting price per second; final charge = rate × duration':
-      'Giá khởi điểm mỗi giây; phí thực tế = đơn giá × thời lượng',
+    'Billing time': 'Thời điểm tính phí',
   },
 }
 
@@ -79,27 +43,32 @@ async function main() {
       if (!Object.prototype.hasOwnProperty.call(json.translation, key)) {
         json.translation[key] = value
         count++
-      } else if (json.translation[key] != value) {
+      } else if (json.translation[key] !== value) {
         json.translation[key] = value
         count++
       }
     }
 
     if (count > 0) {
-      json.translation = Object.fromEntries(
-        Object.entries(json.translation).sort(([a], [b]) => a.localeCompare(b))
-      )
-      await fs.writeFile(filePath, stableStringify(json), 'utf8')
+      const sorted = Object.keys(json.translation)
+        .sort((a, b) => a.localeCompare(b))
+        .reduce((acc, k) => {
+          acc[k] = json.translation[k]
+          return acc
+        }, {})
+      json.translation = sorted
+      await fs.writeFile(filePath, stableStringify(json))
+      console.log(`${locale}: wrote ${count} key(s)`)
+      totalAdded += count
+    } else {
+      console.log(`${locale}: no changes`)
     }
-
-    console.log(`${locale}: ${count} translations applied`)
-    totalAdded += count
   }
 
-  console.log(`\nTotal: ${totalAdded} translations applied`)
+  console.log(`Done. Total keys touched: ${totalAdded}`)
 }
 
 main().catch((err) => {
   console.error(err)
-  process.exitCode = 1
+  process.exit(1)
 })

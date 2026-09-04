@@ -183,7 +183,20 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     hints: {
       key: 'Agnes AI API Key',
       models: 'agnes-video-v2.0',
-      baseUrl: 'CN: https://api.agnes-ai.cn · Global: https://apihub.agnes-ai.com',
+      baseUrl:
+        'CN: https://api.agnes-ai.cn · Global: https://apihub.agnes-ai.com',
+    },
+  },
+  963: {
+    id: 963,
+    name: CHANNEL_TYPES[963],
+    icon: 'tongyi',
+    hints: {
+      key: 'DashScope API Key',
+      models: 'wan3.0-video, wan3.0-video-prime',
+      baseUrl: 'Example: https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com',
+      other:
+        'Supported regions: Beijing, Singapore, Tokyo, Frankfurt, and Virginia',
     },
   },
 }

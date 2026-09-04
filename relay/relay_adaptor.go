@@ -33,19 +33,20 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/sub2api"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
-	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskagensvideo "github.com/QuantumNous/new-api/relay/channel/task/agensvideo"
-	taskhappyhorse "github.com/QuantumNous/new-api/relay/channel/task/happyhorse"
+	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
 	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
+	taskhappyhorse "github.com/QuantumNous/new-api/relay/channel/task/happyhorse"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
+	taskwan30video "github.com/QuantumNous/new-api/relay/channel/task/wan30video"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -168,6 +169,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskhappyhorse.TaskAdaptor{}
 		case constant.ChannelTypeAgnesVideo:
 			return &taskagensvideo.TaskAdaptor{}
+		case constant.ChannelTypeWan30Video:
+			return &taskwan30video.TaskAdaptor{}
 		case constant.ChannelTypeKling:
 			return &kling.TaskAdaptor{}
 		case constant.ChannelTypeJimeng:

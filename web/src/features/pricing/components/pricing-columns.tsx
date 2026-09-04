@@ -34,7 +34,16 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isPerDurationModel, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getDisplayGroupRatio,
+  isPeakOffPeakModel,
+  isPerDurationModel,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
+import {
+  formatPeakOffPeakUnitPrice,
+  formatPeakOffPeakWindowsSummary,
+} from '../lib/peak-offpeak-price'
 import {
   formatDurationSummaryPrice,
   formatPrice,
@@ -115,6 +124,45 @@ export function usePricingColumns(
       ),
       cell: ({ row }) => {
         const model = row.original
+
+        if (isPeakOffPeakModel(model)) {
+          const cfg = model.peak_offpeak_pricing
+          const peakPriceOptions = {
+            tokenUnit,
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            groupRatioMultiplier: getDisplayGroupRatio(model, selectedGroup),
+          }
+          const inputPrice = stripTrailingZeros(
+            formatPeakOffPeakUnitPrice(
+              cfg?.off_peak.cache_miss ?? 0,
+              peakPriceOptions
+            )
+          )
+          const outputPrice = stripTrailingZeros(
+            formatPeakOffPeakUnitPrice(
+              cfg?.off_peak.completion ?? 0,
+              peakPriceOptions
+            )
+          )
+          return (
+            <div className='max-w-full min-w-0'>
+              <div className='font-mono text-xs leading-5 tabular-nums'>
+                <div>
+                  {t('From')} {t('Input')} {inputPrice}
+                </div>
+                <div>
+                  {t('Output')} {outputPrice}
+                </div>
+              </div>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                {formatPeakOffPeakWindowsSummary(model, t)}
+              </div>
+            </div>
+          )
+        }
+
         const dynamicSummary = getDynamicPricingSummary(model, {
           tokenUnit,
           showRechargePrice,

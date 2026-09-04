@@ -79,6 +79,7 @@ type UpstreamRatioSyncProps = {
     'billing_setting.billing_mode': string
     'billing_setting.billing_expr': string
     'billing_setting.duration_pricing': string
+    'billing_setting.peak_offpeak_pricing'?: string
   }
 }
 

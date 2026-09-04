@@ -19,9 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { FilmIcon, Trash2Icon } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import {
   Queue,
   QueueSection,
@@ -29,17 +27,22 @@ import {
   QueueSectionLabel,
   QueueSectionContent,
 } from '@/components/ai-elements/queue'
-import { VideoTaskItem } from './video-task-item'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
 import type {
   VideoTaskItem as VideoTaskItemType,
   VideoRequestProfile,
 } from '../types'
+import { VideoTaskItem } from './video-task-item'
 
 const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   happyhorse: 'HappyHorse',
   seedance: 'Seedance',
   minimax_h3: 'MiniMax H3',
   agnes_video: 'Agnes Video',
+  wan30_video: 'Wan Video',
   generic: 'Video',
 }
 
@@ -64,7 +67,7 @@ export function VideoTaskQueue({
     for (const task of tasks) {
       if (task.profile) profiles.add(task.profile)
     }
-    return Array.from(profiles)
+    return [...profiles]
   }, [tasks])
 
   const filteredTasks = useMemo(
@@ -98,12 +101,10 @@ export function VideoTaskQueue({
       {availableProfiles.length > 1 && (
         <Tabs value={profileFilter} onValueChange={setProfileFilter}>
           <TabsList variant='line'>
-            <TabsTrigger value='all'>
-              {t('All')}
-            </TabsTrigger>
+            <TabsTrigger value='all'>{t('All')}</TabsTrigger>
             {availableProfiles.map((profile) => (
               <TabsTrigger key={profile} value={profile}>
-                {PROFILE_LABELS[profile]}
+                {t(PROFILE_LABELS[profile])}
               </TabsTrigger>
             ))}
           </TabsList>

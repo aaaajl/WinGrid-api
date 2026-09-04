@@ -3,12 +3,14 @@ package helper
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/durationbilling"
+	"github.com/QuantumNous/new-api/pkg/peakoffpeak"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
@@ -79,6 +81,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
+	}
+	if billing_setting.IsPeakOffPeakBilling(info.OriginModelName) {
+		return modelPriceHelperPeakOffPeak(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
 	var preConsumedQuota int
@@ -330,6 +335,10 @@ func HasModelBillingConfig(modelName string) bool {
 		cfg, ok := billing_setting.GetDurationPricing(modelName)
 		return ok && billing_setting.ValidateDurationPricing(cfg) == nil
 	}
+	if billing_setting.IsPeakOffPeakBilling(modelName) {
+		cfg, ok := billing_setting.GetPeakOffPeakPricing(modelName)
+		return ok && billing_setting.ValidatePeakOffPeakConfig(cfg) == nil
+	}
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}
@@ -341,6 +350,73 @@ func HasModelBillingConfig(modelName string) bool {
 	}
 	expr, ok := billing_setting.GetBillingExpr(modelName)
 	return ok && strings.TrimSpace(expr) != ""
+}
+
+func modelPriceHelperPeakOffPeak(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
+	cfg, ok := billing_setting.GetPeakOffPeakPricing(info.OriginModelName)
+	if !ok {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as peak_offpeak but has no peak_offpeak_pricing", info.OriginModelName)
+	}
+	if err := billing_setting.ValidatePeakOffPeakConfig(cfg); err != nil {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s peak_offpeak_pricing invalid: %w", info.OriginModelName, err)
+	}
+
+	estimatedCompletionTokens := meta.MaxTokens
+	if estimatedCompletionTokens == 0 && groupRatioInfo.GroupRatio != 0 {
+		estimatedCompletionTokens = defaultTieredPreConsumeMaxTokens
+	}
+
+	evalAt := time.Now()
+	period, err := peakoffpeak.ResolvePeriod(cfg, evalAt)
+	if err != nil {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s peak_offpeak period resolve failed: %w", info.OriginModelName, err)
+	}
+
+	// Pre-consume assumes no cache hit; settlement uses actual usage.
+	tokens := peakoffpeak.TokenParams{
+		P: float64(promptTokens),
+		C: float64(estimatedCompletionTokens),
+	}
+	costUSD := peakoffpeak.CalcCostUSD(peakoffpeak.PricesForPeriod(cfg, period), tokens)
+	quotaBeforeGroup := costUSD * common.QuotaPerUnit
+	preConsumedQuota, clamp := common.QuotaFromFloatChecked(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+	if clamp != nil && info != nil {
+		if info.QuotaClamp == nil {
+			info.QuotaClamp = clamp
+		}
+	}
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 {
+			preConsumedQuota = 0
+			freeModel = true
+		}
+	}
+
+	info.PeakOffPeakSnapshot = &peakoffpeak.Snapshot{
+		BillingMode:               billing_setting.BillingModePeakOffPeak,
+		ModelName:                 info.OriginModelName,
+		Config:                    cfg,
+		ConfigHash:                peakoffpeak.ConfigHash(cfg),
+		EvalUnix:                  evalAt.Unix(),
+		EstimatedPeriod:           period,
+		GroupRatio:                groupRatioInfo.GroupRatio,
+		QuotaPerUnit:              common.QuotaPerUnit,
+		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
+		EstimatedQuotaAfterGroup:  preConsumedQuota,
+		EstimatedPromptTokens:     promptTokens,
+		EstimatedCompletionTokens: estimatedCompletionTokens,
+	}
+
+	priceData := hosttypes.PriceData{
+		FreeModel:         freeModel,
+		GroupRatioInfo:    groupRatioInfo,
+		QuotaToPreConsume: preConsumedQuota,
+	}
+	logger.LogDebug(c, "model_price_helper_peak_offpeak: model=%s period=%s preConsume=%d costUSD=%g", info.OriginModelName, period, preConsumedQuota, costUSD)
+	info.PriceData = priceData
+	return priceData, nil
 }
 
 func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {

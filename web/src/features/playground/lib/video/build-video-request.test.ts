@@ -26,6 +26,7 @@ import {
   buildMiniMaxH3VideoRequest,
   buildSeedanceVideoRequest,
   buildVideoRequest,
+  buildWan30VideoRequest,
   getVideoRequestProfile,
   resolveAgnesVideoSize,
 } from './build-video-request'
@@ -151,9 +152,100 @@ describe('buildVideoRequest', () => {
     })
   })
 
+  test('buildAgnesVideoRequest for 2.5 keeps size tier and aspect_ratio', () => {
+    const req = buildAgnesVideoRequest({
+      model: 'agnes-video-2.5',
+      prompt: 'Neon city after rain',
+      size: '960P',
+      ratio: '9:16',
+      duration: 5,
+      frameRate: 24,
+      seed: 1101,
+    })
+
+    assert.deepEqual(req, {
+      model: 'agnes-video-2.5',
+      prompt: 'Neon city after rain',
+      size: '960P',
+      duration: 5,
+      metadata: {
+        aspect_ratio: '9:16',
+        mode: 'text',
+        seed: 1101,
+      },
+    })
+  })
+
+  test('buildAgnesVideoRequest for 2.5 maps image to keyframe metadata', () => {
+    const req = buildAgnesVideoRequest({
+      model: 'agnes-video-2.5',
+      prompt: 'Walk to the window',
+      size: '720P',
+      ratio: '16:9',
+      duration: 5,
+      frameRate: 24,
+      image: 'https://example.com/first.png',
+    })
+
+    assert.deepEqual(req, {
+      model: 'agnes-video-2.5',
+      prompt: 'Walk to the window',
+      size: '720P',
+      duration: 5,
+      image: 'https://example.com/first.png',
+      metadata: {
+        aspect_ratio: '16:9',
+        mode: 'keyframe',
+        first_frame: 'https://example.com/first.png',
+      },
+    })
+  })
+
   test('resolveAgnesVideoSize maps presets by ratio', () => {
     assert.equal(resolveAgnesVideoSize('1080P', '9:16'), '1080x1920')
     assert.equal(resolveAgnesVideoSize('480P', '1:1'), '512x512')
+  })
+
+  test('buildWan30VideoRequest emits only media for the selected mode', () => {
+    const req = buildWan30VideoRequest({
+      model: 'wan3.0-video',
+      prompt: 'Move between two frames',
+      mode: 'first_last_frame',
+      resolution: '1080P',
+      ratio: 'adaptive',
+      duration: 5,
+      audio: false,
+      promptExtend: false,
+      watermark: false,
+      firstFrameUrl: 'https://example.com/first.png',
+      lastFrameUrl: 'https://example.com/last.png',
+      references: [
+        {
+          id: 'ignored-reference',
+          type: 'reference_image',
+          url: 'https://example.com/ignored.png',
+        },
+      ],
+      fileUrl: 'https://example.com/ignored.pdf',
+      linkUrl: 'https://example.com/ignored',
+    })
+
+    assert.deepEqual(req, {
+      model: 'wan3.0-video',
+      prompt: 'Move between two frames',
+      size: '1080P',
+      duration: 5,
+      metadata: {
+        ratio: 'adaptive',
+        audio: false,
+        prompt_extend: false,
+        watermark: false,
+        media: [
+          { type: 'first_frame', url: 'https://example.com/first.png' },
+          { type: 'last_frame', url: 'https://example.com/last.png' },
+        ],
+      },
+    })
   })
 
   test('buildVideoRequest delegates by profile', () => {
@@ -178,5 +270,6 @@ describe('buildVideoRequest', () => {
     assert.equal(getVideoRequestProfile('minimax-h3'), 'minimax_h3')
     assert.equal(getVideoRequestProfile('happyhorse-1.0-t2v'), 'happyhorse')
     assert.equal(getVideoRequestProfile('agnes-video-v2.0'), 'agnes_video')
+    assert.equal(getVideoRequestProfile('wan3.0-video-prime'), 'wan30_video')
   })
 })

@@ -106,6 +106,7 @@ export function getChannelTypeIcon(type: number): string {
     56: 'Replicate', // Replicate
     961: 'Tongyi', // HappyHorse
     962: 'Agnes', // Agnes Video
+    963: 'Tongyi', // Wan Video
 
     // Tools & Platforms
     37: 'Dify', // Dify

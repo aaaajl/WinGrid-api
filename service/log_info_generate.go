@@ -4,14 +4,17 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/peakoffpeak"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -316,5 +319,47 @@ func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommo
 	other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(snap.ExprString))
 	if result != nil {
 		other["matched_tier"] = result.MatchedTier
+	}
+}
+
+// InjectPeakOffPeakBillingInfo overlays peak/off-peak billing fields onto the
+// consume log other map.
+func InjectPeakOffPeakBillingInfo(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, result *peakoffpeak.Result) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	snap := relayInfo.PeakOffPeakSnapshot
+	if snap == nil {
+		return
+	}
+	other["billing_mode"] = billing_setting.BillingModePeakOffPeak
+	if snap.EvalUnix != 0 {
+		other["billing_eval_at"] = time.Unix(snap.EvalUnix, 0).UTC().Format(time.RFC3339)
+	}
+	period := snap.EstimatedPeriod
+	if result != nil && result.MatchedPeriod != "" {
+		period = result.MatchedPeriod
+	}
+	if period != "" {
+		other["matched_tier"] = period
+	}
+	prices := peakoffpeak.PricesForPeriod(snap.Config, period)
+	// Absolute $/1M prices used for this request (matched period).
+	other["peak_offpeak_input_price"] = prices.CacheMiss
+	other["peak_offpeak_output_price"] = prices.Completion
+	other["peak_offpeak_cache_hit_price"] = prices.CacheHit
+	other["peak_offpeak_pricing"] = map[string]any{
+		"timezone":      snap.Config.Timezone,
+		"weekdays_only": snap.Config.WeekdaysOnly,
+		"peak": map[string]float64{
+			"cache_hit":   snap.Config.Peak.CacheHit,
+			"cache_miss":  snap.Config.Peak.CacheMiss,
+			"completion":  snap.Config.Peak.Completion,
+		},
+		"off_peak": map[string]float64{
+			"cache_hit":   snap.Config.OffPeak.CacheHit,
+			"cache_miss":  snap.Config.OffPeak.CacheMiss,
+			"completion":  snap.Config.OffPeak.Completion,
+		},
 	}
 }

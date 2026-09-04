@@ -36,6 +36,7 @@ type Pricing struct {
 	BillingMode            string                  `json:"billing_mode,omitempty"`
 	BillingExpr            string                  `json:"billing_expr,omitempty"`
 	DurationPricing        *DurationPricingPublic  `json:"duration_pricing,omitempty"`
+	PeakOffPeakPricing     *PeakOffPeakPricingPublic `json:"peak_offpeak_pricing,omitempty"`
 	PricingVersion         string                  `json:"pricing_version,omitempty"`
 }
 
@@ -43,6 +44,22 @@ type Pricing struct {
 type DurationPricingPublic struct {
 	FallbackPrice float64            `json:"fallback_price"`
 	SizePrices    map[string]float64 `json:"size_prices,omitempty"`
+}
+
+// PeakOffPeakPricingPublic exposes peak/off-peak cards on the pricing API.
+type PeakOffPeakPricingPublic struct {
+	Timezone      string                       `json:"timezone"`
+	WeekdaysOnly  bool                         `json:"weekdays_only"`
+	PeakWindows   []string                     `json:"peak_windows"`
+	Peak          PeakOffPeakTokenPricesPublic `json:"peak"`
+	OffPeak       PeakOffPeakTokenPricesPublic `json:"off_peak"`
+}
+
+// PeakOffPeakTokenPricesPublic is USD/$1M prices for one period.
+type PeakOffPeakTokenPricesPublic struct {
+	CacheHit   float64 `json:"cache_hit"`
+	CacheMiss  float64 `json:"cache_miss"`
+	Completion float64 `json:"completion"`
 }
 
 type PricingVendor struct {
@@ -426,6 +443,25 @@ func updatePricing() {
 					}
 				}
 				pricing.DurationPricing = copied
+			}
+		} else if billingMode == billing_setting.BillingModePeakOffPeak {
+			if cfg, ok := billing_setting.GetPeakOffPeakPricing(model); ok && billing_setting.ValidatePeakOffPeakConfig(cfg) == nil {
+				pricing.BillingMode = billingMode
+				windows := make([]string, 0, len(cfg.PeakWindows))
+				for _, w := range cfg.PeakWindows {
+					windows = append(windows, fmt.Sprintf("%s-%s", w.Start, w.End))
+				}
+				pricing.PeakOffPeakPricing = &PeakOffPeakPricingPublic{
+					Timezone:     cfg.Timezone,
+					WeekdaysOnly: cfg.WeekdaysOnly,
+					PeakWindows:  windows,
+					Peak: PeakOffPeakTokenPricesPublic{
+						CacheHit: cfg.Peak.CacheHit, CacheMiss: cfg.Peak.CacheMiss, Completion: cfg.Peak.Completion,
+					},
+					OffPeak: PeakOffPeakTokenPricesPublic{
+						CacheHit: cfg.OffPeak.CacheHit, CacheMiss: cfg.OffPeak.CacheMiss, Completion: cfg.OffPeak.Completion,
+					},
+				}
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

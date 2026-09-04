@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
 
 import { safeJsonParse } from '../utils/json-parser'
+import {
+  peakOffPeakConfigToForm,
+  type PeakOffPeakConfig,
+  type PeakOffPeakFormValues,
+} from './model-pricing-core'
 import { formatPricingNumber } from './pricing-format'
 
 export type ModelPricingSnapshotInput = {
@@ -33,12 +38,15 @@ export type ModelPricingSnapshotInput = {
   billingMode: string
   billingExpr: string
   durationPricing: string
+  peakOffPeakPricing: string
 }
 
 export type DurationPricingConfig = {
   fallback_price?: number
   size_prices?: Record<string, number>
 }
+
+export type { PeakOffPeakConfig }
 
 export type ModelPricingSnapshot = {
   name: string
@@ -55,6 +63,7 @@ export type ModelPricingSnapshot = {
   requestRuleExpr?: string
   fallbackPrice?: string
   sizePrices?: { size: string; price: string }[]
+  peakOffPeak?: PeakOffPeakFormValues
   hasConflict: boolean
 }
 
@@ -73,6 +82,7 @@ export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
   !snapshot ||
   (snapshot.billingMode !== 'tiered_expr' &&
     snapshot.billingMode !== 'per_duration' &&
+    snapshot.billingMode !== 'peak_offpeak' &&
     !hasPricingValue(snapshot.price) &&
     !hasPricingValue(snapshot.ratio))
 
@@ -93,6 +103,7 @@ export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
   if (mode === 'per_duration') return 'Per-duration'
+  if (mode === 'peak_offpeak') return 'Peak / Off-peak'
   return 'Per-token'
 }
 
@@ -102,6 +113,7 @@ export const getModeVariant = (
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
   if (mode === 'per_duration') return 'neutral'
+  if (mode === 'peak_offpeak') return 'warning'
   return 'success'
 }
 
@@ -128,6 +140,14 @@ export const getPriceSummary = (
     return count > 0
       ? `${t('Per-duration')} · ${count} ${t('sizes')}`
       : t('Per-duration')
+  }
+  if (row.billingMode === 'peak_offpeak') {
+    const peakIn = row.peakOffPeak?.peak.cacheMiss
+    const peakOut = row.peakOffPeak?.peak.completion
+    if (peakIn && peakOut) {
+      return `${t('Peak')} $${peakIn} / $${peakOut}`
+    }
+    return t('Peak / Off-peak')
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -164,6 +184,15 @@ export const getPriceDetail = (
       ? `${t('Fallback')} $${row.fallbackPrice}/s`
       : t('Size × duration pricing')
   }
+  if (row.billingMode === 'peak_offpeak') {
+    const windows = row.peakOffPeak?.peakWindows
+      ?.filter((w) => w.start && w.end)
+      .map((w) => `${w.start}-${w.end}`)
+    if (windows && windows.length > 0) {
+      return `${t('Peak hours')}: ${windows.join(', ')}`
+    }
+    return t('Peak / Off-peak pricing')
+  }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
   }
@@ -197,6 +226,7 @@ export const buildModelSnapshots = ({
   billingMode,
   billingExpr,
   durationPricing,
+  peakOffPeakPricing,
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -244,6 +274,12 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'duration pricing',
   })
+  const peakOffPeakPricingMap = safeJsonParse<
+    Record<string, PeakOffPeakConfig>
+  >(peakOffPeakPricing, {
+    fallback: {},
+    context: 'peak offpeak pricing',
+  })
 
   const modelNames = new Set([
     ...Object.keys(priceMap),
@@ -257,6 +293,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(billingModeMap),
     ...Object.keys(billingExprMap),
     ...Object.keys(durationPricingMap),
+    ...Object.keys(peakOffPeakPricingMap),
   ])
 
   return Array.from(modelNames).map((name) => {
@@ -317,6 +354,23 @@ export const buildModelSnapshots = ({
       }
     }
 
+    if (modeForModel === 'peak_offpeak') {
+      return {
+        name,
+        billingMode: 'peak_offpeak',
+        peakOffPeak: peakOffPeakConfigToForm(peakOffPeakPricingMap[name]),
+        price,
+        ratio,
+        cacheRatio: cache,
+        createCacheRatio: createCache,
+        completionRatio: completion,
+        imageRatio: image,
+        audioRatio: audio,
+        audioCompletionRatio: audioCompletion,
+        hasConflict: false,
+      }
+    }
+
     return {
       name,
       price,
@@ -357,5 +411,6 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     requestRuleExpr: snapshot.requestRuleExpr || '',
     fallbackPrice: snapshot.fallbackPrice || '',
     sizePrices: snapshot.sizePrices || [],
+    peakOffPeak: snapshot.peakOffPeak || undefined,
   })
 }

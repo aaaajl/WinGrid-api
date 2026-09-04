@@ -3,6 +3,7 @@ package dto
 type PlaygroundImageModel struct {
 	Model        string            `json:"model"`
 	Tags         []string          `json:"tags"`
+	Groups       []string          `json:"groups"`
 	Profile      string            `json:"profile"`
 	Label        string            `json:"label"`
 	Capabilities ImageCapabilities `json:"capabilities"`

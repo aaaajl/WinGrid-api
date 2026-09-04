@@ -60,6 +60,7 @@ type ModelFormValues = {
   BillingMode: string
   BillingExpr: string
   DurationPricing: string
+  PeakOffPeakPricing: string
 }
 
 type ModelRatioFormProps = {
@@ -277,6 +278,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               savedBillingMode={savedValues.BillingMode}
               savedBillingExpr={savedValues.BillingExpr}
               savedDurationPricing={savedValues.DurationPricing}
+              savedPeakOffPeakPricing={savedValues.PeakOffPeakPricing}
               modelPrice={form.watch('ModelPrice')}
               modelRatio={form.watch('ModelRatio')}
               cacheRatio={form.watch('CacheRatio')}
@@ -288,6 +290,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               billingMode={form.watch('BillingMode')}
               billingExpr={form.watch('BillingExpr')}
               durationPricing={form.watch('DurationPricing')}
+              peakOffPeakPricing={form.watch('PeakOffPeakPricing')}
               candidateModelNames={
                 isUnsetVariant ? enabledModelsQuery.data?.data : undefined
               }
@@ -302,6 +305,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
                   'billing_setting.billing_mode': 'BillingMode',
                   'billing_setting.billing_expr': 'BillingExpr',
                   'billing_setting.duration_pricing': 'DurationPricing',
+                  'billing_setting.peak_offpeak_pricing': 'PeakOffPeakPricing',
                 }
                 const formField =
                   fieldMap[field] || (field as keyof ModelFormValues)

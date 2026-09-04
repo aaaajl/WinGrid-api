@@ -83,12 +83,13 @@ export const CHANNEL_TYPES = {
   60: 'New API',
   961: 'HappyHorse',
   962: 'Agnes Video',
+  963: 'Wan Video',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 3, 41, 48, 60, 58, 42, 34, 20, 4, 40, 27, 25, 17, 26, 15,
   46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 59, 22, 21, 44, 2,
-  5, 36, 50, 51, 52, 53, 54, 55, 56, 961, 962,
+  5, 36, 50, 51, 52, 53, 54, 55, 56, 961, 962, 963,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -411,4 +412,5 @@ export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
   8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  963: 'The model, Endpoint URL, and API key must belong to the same region. Replace {WorkspaceId} with your real workspace ID.',
 }

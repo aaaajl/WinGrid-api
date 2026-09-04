@@ -25,13 +25,15 @@ import type {
   SeedanceCapabilities,
   VideoGenerationRequest,
   VideoRequestProfile,
-} from '../types'
+  Wan30VideoCapabilities,
+} from '../../types'
 
 export function getVideoRequestProfile(modelName: string): VideoRequestProfile {
   if (modelName.startsWith('happyhorse-')) return 'happyhorse'
   if (modelName.startsWith('doubao-seedance-')) return 'seedance'
   if (modelName.toLowerCase() === 'minimax-h3') return 'minimax_h3'
   if (modelName.toLowerCase().startsWith('agnes-video-')) return 'agnes_video'
+  if (modelName.toLowerCase().startsWith('wan3.0-video')) return 'wan30_video'
   return 'generic'
 }
 
@@ -86,14 +88,52 @@ export interface GenericFormState {
   duration: number
 }
 
+export type Wan30Mode =
+  | 't2v'
+  | 'first_frame'
+  | 'first_last_frame'
+  | 'reference'
+  | 'file'
+  | 'link'
+
+export type Wan30ReferenceType =
+  | 'reference_image'
+  | 'reference_video'
+  | 'reference_audio'
+
+export interface Wan30MediaItem {
+  id: string
+  type: Wan30ReferenceType
+  url: string
+}
+
+export interface Wan30FormState {
+  model: string
+  prompt: string
+  mode: Wan30Mode
+  resolution: string
+  ratio: string
+  duration: number
+  audio: boolean
+  promptExtend: boolean
+  watermark: boolean
+  seed?: number
+  firstFrameUrl?: string
+  lastFrameUrl?: string
+  references: Wan30MediaItem[]
+  fileUrl?: string
+  linkUrl?: string
+}
+
 export type VideoFormState =
   | HappyHorseFormState
   | SeedanceFormState
   | MiniMaxH3FormState
   | AgnesVideoFormState
+  | Wan30FormState
   | GenericFormState
 
-/** Map playground size+ratio to Agnes WxH accepted by the adaptor. */
+/** Map playground size+ratio to Agnes 2.0 WxH accepted by the adaptor. */
 const AGNES_SIZE_BY_RATIO: Record<string, Record<string, string>> = {
   '480P': {
     '16:9': '832x448',
@@ -110,6 +150,15 @@ const AGNES_SIZE_BY_RATIO: Record<string, Record<string, string>> = {
     '9:16': '1080x1920',
     '1:1': '1080x1080',
   },
+}
+
+export function isAgnesVideo25Model(modelName: string): boolean {
+  const lower = modelName.toLowerCase()
+  return (
+    lower.includes('agnes-video-2.5') ||
+    lower.includes('agnes-video-v2.5') ||
+    lower.includes('agnes-video-2-5')
+  )
 }
 
 export function resolveAgnesVideoSize(size: string, ratio: string): string {
@@ -175,10 +224,27 @@ export function buildAgnesVideoRequest(
   state: AgnesVideoFormState
 ): VideoGenerationRequest {
   const prompt = state.prompt.trim()
-  const size = resolveAgnesVideoSize(state.size, state.ratio)
   const image = state.image?.trim()
   const negativePrompt = state.negativePrompt?.trim()
 
+  if (isAgnesVideo25Model(state.model)) {
+    return {
+      model: state.model,
+      prompt,
+      // 2.5 accepts resolution tiers only; aspect_ratio is separate.
+      size: state.size,
+      duration: state.duration,
+      ...(image ? { image } : {}),
+      metadata: {
+        aspect_ratio: state.ratio,
+        mode: image ? 'keyframe' : 'text',
+        ...(image ? { first_frame: image } : {}),
+        ...(state.seed != null ? { seed: state.seed } : {}),
+      },
+    }
+  }
+
+  const size = resolveAgnesVideoSize(state.size, state.ratio)
   return {
     model: state.model,
     prompt,
@@ -191,6 +257,49 @@ export function buildAgnesVideoRequest(
       ...(state.seed != null ? { seed: state.seed } : {}),
       ...(negativePrompt ? { negative_prompt: negativePrompt } : {}),
       ...(image ? { image } : {}),
+    },
+  }
+}
+
+export function buildWan30VideoRequest(
+  state: Wan30FormState
+): VideoGenerationRequest {
+  const media: Array<{ type: string; url: string }> = []
+  if (state.mode === 'first_frame' || state.mode === 'first_last_frame') {
+    const firstFrameUrl = state.firstFrameUrl?.trim()
+    if (firstFrameUrl) media.push({ type: 'first_frame', url: firstFrameUrl })
+  }
+  if (state.mode === 'first_last_frame') {
+    const lastFrameUrl = state.lastFrameUrl?.trim()
+    if (lastFrameUrl) media.push({ type: 'last_frame', url: lastFrameUrl })
+  }
+  if (state.mode === 'reference') {
+    for (const item of state.references) {
+      const url = item.url.trim()
+      if (url) media.push({ type: item.type, url })
+    }
+  }
+  if (state.mode === 'file') {
+    const fileUrl = state.fileUrl?.trim()
+    if (fileUrl) media.push({ type: 'file', url: fileUrl })
+  }
+  if (state.mode === 'link') {
+    const linkUrl = state.linkUrl?.trim()
+    if (linkUrl) media.push({ type: 'link', url: linkUrl })
+  }
+
+  return {
+    model: state.model,
+    prompt: state.prompt.trim(),
+    size: state.resolution,
+    duration: state.duration,
+    metadata: {
+      ratio: state.ratio,
+      audio: state.audio,
+      prompt_extend: state.promptExtend,
+      watermark: state.watermark,
+      ...(state.seed != null ? { seed: state.seed } : {}),
+      ...(media.length > 0 ? { media } : {}),
     },
   }
 }
@@ -222,6 +331,9 @@ export function buildVideoRequest(
   if (profile === 'agnes_video') {
     return buildAgnesVideoRequest(state as AgnesVideoFormState)
   }
+  if (profile === 'wan30_video') {
+    return buildWan30VideoRequest(state as Wan30FormState)
+  }
   return buildGenericVideoRequest(state as GenericFormState)
 }
 
@@ -238,10 +350,7 @@ export function isHappyHorseCapabilities(
 export function isSeedanceCapabilities(
   capabilities: PlaygroundVideoModel['capabilities']
 ): capabilities is SeedanceCapabilities {
-  return (
-    'supported_resolutions' in capabilities &&
-    !('form' in capabilities)
-  )
+  return 'supported_resolutions' in capabilities && !('form' in capabilities)
 }
 
 export function isMiniMaxH3Capabilities(
@@ -254,6 +363,12 @@ export function isAgnesVideoCapabilities(
   capabilities: PlaygroundVideoModel['capabilities']
 ): capabilities is AgnesVideoCapabilities {
   return 'form' in capabilities && capabilities.form === 'agnes_video'
+}
+
+export function isWan30VideoCapabilities(
+  capabilities: PlaygroundVideoModel['capabilities']
+): capabilities is Wan30VideoCapabilities {
+  return 'form' in capabilities && capabilities.form === 'wan30_video'
 }
 
 export function isGenericCapabilities(
@@ -338,9 +453,15 @@ export function getDefaultAgnesVideoFormState(
   const caps = isAgnesVideoCapabilities(model.capabilities)
     ? model.capabilities
     : {
-        supported_sizes: ['480P', '720P', '1080P'],
-        supported_ratios: ['16:9', '9:16', '1:1'],
-        duration_range: [1, 18] as [number, number],
+        supported_sizes: isAgnesVideo25Model(model.model)
+          ? ['720P', '960P', '2K']
+          : ['480P', '720P', '1080P'],
+        supported_ratios: isAgnesVideo25Model(model.model)
+          ? ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16']
+          : ['16:9', '9:16', '1:1'],
+        duration_range: (isAgnesVideo25Model(model.model)
+          ? [4, 12]
+          : [1, 18]) as [number, number],
         frame_rate_range: [1, 60] as [number, number],
         num_frames_range: [1, 441] as [number, number],
         form: 'agnes_video' as const,
@@ -357,6 +478,36 @@ export function getDefaultAgnesVideoFormState(
       : (caps.supported_ratios[0] ?? '16:9'),
     duration: Math.max(caps.duration_range[0] ?? 5, 5),
     frameRate: 24,
+  }
+}
+
+export function getDefaultWan30FormState(
+  model: PlaygroundVideoModel
+): Wan30FormState {
+  const caps = isWan30VideoCapabilities(model.capabilities)
+    ? model.capabilities
+    : {
+        supported_resolutions: ['480P', '720P', '1080P'],
+        supported_ratios: ['adaptive', '16:9', '4:3', '1:1', '3:4', '9:16'],
+        duration_range: [2, 30] as [number, number],
+        form: 'wan30_video' as const,
+      }
+
+  return {
+    model: model.model,
+    prompt: '',
+    mode: 't2v',
+    resolution: caps.supported_resolutions.includes('1080P')
+      ? '1080P'
+      : (caps.supported_resolutions[0] ?? '1080P'),
+    ratio: caps.supported_ratios.includes('adaptive')
+      ? 'adaptive'
+      : (caps.supported_ratios[0] ?? 'adaptive'),
+    duration: Math.max(caps.duration_range[0] ?? 5, 5),
+    audio: true,
+    promptExtend: true,
+    watermark: false,
+    references: [],
   }
 }
 

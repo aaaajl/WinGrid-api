@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/peakoffpeak"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -225,6 +226,26 @@ func composeTieredTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaS
 	return total
 }
 
+func composePeakOffPeakTextQuota(relayInfo *relaycommon.RelayInfo, summary textQuotaSummary, peakQuota int, peakResult *peakoffpeak.Result) int {
+	if summary.ToolCallSurchargeQuota.IsZero() {
+		return peakQuota
+	}
+	if peakResult != nil {
+		if snap := relayInfo.PeakOffPeakSnapshot; snap != nil {
+			quota, clamp := common.QuotaFromDecimalChecked(decimal.NewFromFloat(peakResult.ActualQuotaBeforeGroup).
+				Mul(decimal.NewFromFloat(snap.GroupRatio)).
+				Add(summary.ToolCallSurchargeQuota))
+			noteQuotaClamp(relayInfo, clamp)
+			return quota
+		}
+	}
+	total, clamp := common.QuotaFromDecimalChecked(
+		decimal.NewFromInt(int64(peakQuota)).Add(summary.ToolCallSurchargeQuota),
+	)
+	noteQuotaClamp(relayInfo, clamp)
+	return total
+}
+
 // calculateTextQuotaSummary expects a usage already remapped by
 // effectiveBillingUsage; PostTextConsumeQuota performs that remap once and shares
 // the result with tiered billing, affinity observation and logging.
@@ -409,6 +430,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	var tieredResult *billingexpr.TieredResult
 	tieredBillingApplied := false
+	var peakOffPeakResult *peakoffpeak.Result
+	peakOffPeakBillingApplied := false
 	if originUsage != nil {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
@@ -419,6 +442,13 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			tieredBillingApplied = true
 			tieredResult = tieredRes
 			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
+		} else {
+			peakOk, peakQuota, peakRes := TryPeakOffPeakSettle(relayInfo, billingUsage, summary.IsClaudeUsageSemantic)
+			if peakOk {
+				peakOffPeakBillingApplied = true
+				peakOffPeakResult = peakRes
+				summary.Quota = composePeakOffPeakTextQuota(relayInfo, summary, peakQuota, peakRes)
+			}
 		}
 	}
 
@@ -519,6 +549,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if peakOffPeakBillingApplied {
+		InjectPeakOffPeakBillingInfo(other, relayInfo, peakOffPeakResult)
 	}
 
 	attachQuotaSaturation(ctx, relayInfo, other)

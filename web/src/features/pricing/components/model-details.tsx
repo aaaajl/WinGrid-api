@@ -69,9 +69,14 @@ import {
 import { parseTags } from '../lib/filters'
 import {
   getAvailableGroups,
+  isPeakOffPeakModel,
   isPerDurationModel,
   isTokenBasedModel,
 } from '../lib/model-helpers'
+import {
+  formatPeakOffPeakUnitPrice,
+  formatPeakOffPeakWindowsSummary,
+} from '../lib/peak-offpeak-price'
 import {
   formatDurationUnitPrice,
   formatFixedPrice,
@@ -586,6 +591,7 @@ function PriceSection(props: {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
   const isPerDuration = isPerDurationModel(props.model)
+  const isPeakOffPeak = isPeakOffPeakModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
   const baseGroupRatioMap = { [baseGroupKey]: 1 }
@@ -600,6 +606,7 @@ function PriceSection(props: {
     ? getDurationPriceEntries(props.model)
     : []
   const durationFallback = Number(props.model.duration_pricing?.fallback_price)
+  const peakCfg = props.model.peak_offpeak_pricing
 
   const primaryPriceTypes: { label: string; type: PriceType }[] = [
     { label: t('Input'), type: 'input' },
@@ -638,6 +645,76 @@ function PriceSection(props: {
         props.model.audio_completion_ratio != null,
     },
   ]
+
+  if (isPeakOffPeak && peakCfg) {
+    const priceOptions = {
+      tokenUnit: props.tokenUnit,
+      showRechargePrice: props.showRechargePrice,
+      priceRate: props.priceRate,
+      usdExchangeRate: props.usdExchangeRate,
+      groupRatioMultiplier: 1,
+    }
+    const periods = [
+      { key: 'peak', label: t('Peak'), prices: peakCfg.peak },
+      { key: 'off_peak', label: t('Off-peak'), prices: peakCfg.off_peak },
+    ] as const
+
+    return (
+      <section className='space-y-4'>
+        <div>
+          <SectionTitle>{t('Peak hours')}</SectionTitle>
+          <div className='bg-muted/20 rounded-lg border px-3 py-2.5'>
+            <p className='text-sm'>
+              {formatPeakOffPeakWindowsSummary(props.model, t)}
+            </p>
+          </div>
+        </div>
+        <div>
+          <SectionTitle>{t('Base Price')}</SectionTitle>
+          <div className='grid gap-3 sm:grid-cols-2'>
+            {periods.map((period) => (
+              <div
+                key={period.key}
+                className='bg-muted/20 space-y-2 rounded-lg border p-3'
+              >
+                <div className='text-sm font-medium'>{period.label}</div>
+                <div className='space-y-1.5'>
+                  <div className='flex items-baseline justify-between gap-3'>
+                    <span className='text-muted-foreground/70 text-sm'>
+                      {t('Input')}
+                    </span>
+                    <span className='font-mono text-sm tabular-nums'>
+                      {formatPeakOffPeakUnitPrice(
+                        period.prices.cache_miss,
+                        priceOptions
+                      )}
+                      <span className='text-muted-foreground/40 ml-1 text-xs'>
+                        / {tokenUnitLabel}
+                      </span>
+                    </span>
+                  </div>
+                  <div className='flex items-baseline justify-between gap-3'>
+                    <span className='text-muted-foreground/70 text-sm'>
+                      {t('Output')}
+                    </span>
+                    <span className='font-mono text-sm tabular-nums'>
+                      {formatPeakOffPeakUnitPrice(
+                        period.prices.completion,
+                        priceOptions
+                      )}
+                      <span className='text-muted-foreground/40 ml-1 text-xs'>
+                        / {tokenUnitLabel}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
@@ -939,10 +1016,12 @@ function GroupPricingSection(props: {
 
   const isTokenBased = isTokenBasedModel(props.model)
   const isPerDuration = isPerDurationModel(props.model)
+  const isPeakOffPeak = isPeakOffPeakModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const durationStartingPrice = isPerDuration
     ? getDurationStartingPriceUSD(props.model)
     : null
+  const peakCfg = props.model.peak_offpeak_pricing
 
   const extraPriceTypes = useMemo(() => {
     const types: { label: string; type: PriceType }[] = []
@@ -983,6 +1062,95 @@ function GroupPricingSection(props: {
 
   const thClass =
     'text-muted-foreground py-2 text-[10px] font-medium tracking-wider uppercase'
+
+  if (isPeakOffPeak && peakCfg) {
+    return (
+      <section>
+        <SectionTitle>{t('Pricing by Group')}</SectionTitle>
+        <AutoGroupChain model={props.model} autoGroups={props.autoGroups} />
+        <p className='text-muted-foreground mb-3 text-xs'>
+          {formatPeakOffPeakWindowsSummary(props.model, t)}
+        </p>
+        <StaticDataTable
+          className='-mx-4 rounded-none border-0 sm:mx-0'
+          tableClassName='text-sm'
+          headerRowClassName='hover:bg-transparent'
+          data={availableGroups}
+          getRowKey={(group) => group}
+          columns={[
+            {
+              id: 'group',
+              header: t('Group'),
+              className: thClass,
+              cellClassName: 'py-2.5',
+              cell: (group) => <GroupBadge group={group} size='sm' />,
+            },
+            {
+              id: 'peak_in',
+              header: `${t('Peak')} ${t('Input')}`,
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono',
+              cell: (group: string) =>
+                formatPeakOffPeakUnitPrice(peakCfg.peak.cache_miss, {
+                  tokenUnit: props.tokenUnit,
+                  showRechargePrice,
+                  priceRate: props.priceRate,
+                  usdExchangeRate: props.usdExchangeRate,
+                  groupRatioMultiplier: props.groupRatio[group] || 1,
+                }),
+            },
+            {
+              id: 'peak_out',
+              header: `${t('Peak')} ${t('Output')}`,
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono',
+              cell: (group: string) =>
+                formatPeakOffPeakUnitPrice(peakCfg.peak.completion, {
+                  tokenUnit: props.tokenUnit,
+                  showRechargePrice,
+                  priceRate: props.priceRate,
+                  usdExchangeRate: props.usdExchangeRate,
+                  groupRatioMultiplier: props.groupRatio[group] || 1,
+                }),
+            },
+            {
+              id: 'off_in',
+              header: `${t('Off-peak')} ${t('Input')}`,
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono',
+              cell: (group: string) =>
+                formatPeakOffPeakUnitPrice(peakCfg.off_peak.cache_miss, {
+                  tokenUnit: props.tokenUnit,
+                  showRechargePrice,
+                  priceRate: props.priceRate,
+                  usdExchangeRate: props.usdExchangeRate,
+                  groupRatioMultiplier: props.groupRatio[group] || 1,
+                }),
+            },
+            {
+              id: 'off_out',
+              header: `${t('Off-peak')} ${t('Output')}`,
+              className: `${thClass} text-right`,
+              cellClassName: 'py-2.5 text-right font-mono',
+              cell: (group: string) =>
+                formatPeakOffPeakUnitPrice(peakCfg.off_peak.completion, {
+                  tokenUnit: props.tokenUnit,
+                  showRechargePrice,
+                  priceRate: props.priceRate,
+                  usdExchangeRate: props.usdExchangeRate,
+                  groupRatioMultiplier: props.groupRatio[group] || 1,
+                }),
+            },
+          ]}
+        />
+        <div className='-mx-4 sm:mx-0'>
+          <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
+            {t('Prices shown per')} {tokenUnitLabel} tokens
+          </p>
+        </div>
+      </section>
+    )
+  }
 
   if (isDynamicPricingModel(props.model)) {
     const dynamicTiers = getDynamicPricingTiers(props.model)

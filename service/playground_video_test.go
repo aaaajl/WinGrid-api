@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -77,7 +78,20 @@ func TestVideoRequestProfile(t *testing.T) {
 	assert.Equal(t, VideoProfileMiniMaxH3, VideoRequestProfile("MiniMax-H3"))
 	assert.Equal(t, VideoProfileMiniMaxH3, VideoRequestProfile("minimax-h3"))
 	assert.Equal(t, VideoProfileAgnesVideo, VideoRequestProfile("agnes-video-v2.0"))
+	assert.Equal(t, VideoProfileAgnesVideo, VideoRequestProfile("agnes-video-2.5"))
+	assert.Equal(t, VideoProfileWan30Video, VideoRequestProfile("wan3.0-video-prime"))
 	assert.Equal(t, VideoProfileGeneric, VideoRequestProfile("kling-v1"))
+}
+
+func TestAgnesVideoCapabilities_V25(t *testing.T) {
+	caps := agnesVideoCapabilities("agnes-video-2.5")
+	assert.Equal(t, "agnes_video", caps.Form)
+	assert.Equal(t, []string{"720P", "960P", "2K"}, caps.SupportedSizes)
+	assert.Equal(t, []string{"21:9", "16:9", "4:3", "1:1", "3:4", "9:16"}, caps.SupportedRatios)
+	assert.Equal(t, [2]int{4, 12}, caps.DurationRange)
+	assert.Equal(t, []string{"size", "ratio", "duration", "seed", "image"}, caps.Fields)
+	assert.NotContains(t, caps.Fields, "frame_rate")
+	assert.NotContains(t, caps.Fields, "num_frames")
 }
 
 func TestParseModelTags(t *testing.T) {
@@ -102,6 +116,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		{Group: "default", Model: "custom-t2v-model", ChannelId: 6, Enabled: true},
 		{Group: "default", Model: "MiniMax-H3", ChannelId: 7, Enabled: true},
 		{Group: "default", Model: "agnes-video-v2.0", ChannelId: 8, Enabled: true},
+		{Group: "default", Model: "wan3.0-video", ChannelId: 9, Enabled: true},
 	}).Error)
 
 	now := common.GetTimestamp()
@@ -113,6 +128,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		{ModelName: "custom-t2v-model", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 		{ModelName: "MiniMax-H3", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 		{ModelName: "agnes-video-v2.0", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
+		{ModelName: "wan3.0-video", Tags: "video,t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
 	}).Error)
 	require.NoError(t, db.Model(&model.Model{}).
 		Where("model_name = ?", "happyhorse-disabled").
@@ -120,7 +136,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 
 	models, err := ListPlaygroundVideoModels("default")
 	require.NoError(t, err)
-	require.Len(t, models, 6)
+	require.Len(t, models, 7)
 
 	names := make([]string, 0, len(models))
 	for _, item := range models {
@@ -133,6 +149,7 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 		"custom-t2v-model",
 		"MiniMax-H3",
 		"agnes-video-v2.0",
+		"wan3.0-video",
 	}, names)
 
 	for _, item := range models {
@@ -156,12 +173,52 @@ func TestListPlaygroundVideoModels(t *testing.T) {
 			assert.Equal(t, []string{"480P", "720P", "1080P"}, caps.SupportedSizes)
 			assert.Equal(t, []string{"16:9", "9:16", "1:1"}, caps.SupportedRatios)
 			assert.Equal(t, [2]int{1, 18}, caps.DurationRange)
+		case "wan3.0-video":
+			assert.Equal(t, VideoProfileWan30Video, item.Profile)
+			assert.Equal(t, []string{"default"}, item.Groups)
+			caps, ok := item.Capabilities.(dto.Wan30VideoCapabilities)
+			require.True(t, ok)
+			assert.Equal(t, "wan30_video", caps.Form)
+			assert.Equal(t, []string{"480P", "720P", "1080P"}, caps.SupportedResolutions)
+			assert.Equal(t, [2]int{2, 30}, caps.DurationRange)
+			assert.False(t, caps.SmartDuration)
 		case "kling-v1", "custom-t2v-model":
 			assert.Equal(t, VideoProfileGeneric, item.Profile)
 		default:
 			t.Fatalf("unexpected model %s", item.Model)
 		}
 	}
+}
+
+func TestListPlaygroundVideoModelsUsesUsableGroups(t *testing.T) {
+	db := setupPlaygroundVideoTestDB(t)
+	originalUsableGroups := setting.UserUsableGroups2JSONString()
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default"}`))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsableGroups))
+	})
+
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "wan3.0-video", ChannelId: 1, Enabled: true},
+		{Group: "secret", Model: "secret-t2v", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	now := common.GetTimestamp()
+	require.NoError(t, db.Create(&[]model.Model{
+		{ModelName: "wan3.0-video", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
+		{ModelName: "secret-t2v", Tags: "t2v", Status: 1, CreatedTime: now, UpdatedTime: now},
+	}).Error)
+
+	models, err := ListPlaygroundVideoModels("svip")
+	require.NoError(t, err)
+	names := make([]string, 0, len(models))
+	for _, item := range models {
+		names = append(names, item.Model)
+	}
+	assert.Contains(t, names, "wan3.0-video")
+	assert.NotContains(t, names, "secret-t2v")
+	require.Len(t, models, 1)
+	assert.Equal(t, []string{"default"}, models[0].Groups)
 }
 
 func TestGetEnabledCatalogModelsByNames(t *testing.T) {

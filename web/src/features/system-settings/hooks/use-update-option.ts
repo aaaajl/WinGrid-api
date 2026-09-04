@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { updateSystemOption } from '../api'
 import type { UpdateOptionRequest } from '../types'
 
-// Configuration keys that require status refresh
+// Configuration keys that require a public /api/status refresh
 const STATUS_RELATED_KEYS = new Set([
   'HeaderNavModules',
   'SidebarModulesAdmin',
@@ -39,6 +39,10 @@ const STATUS_RELATED_KEYS = new Set([
   'oidc.display_name',
 ])
 
+export function shouldRefreshFrontendStatus(key: string): boolean {
+  return STATUS_RELATED_KEYS.has(key) || key.startsWith('console_setting.')
+}
+
 export function useUpdateOption() {
   const queryClient = useQueryClient()
 
@@ -50,13 +54,17 @@ export function useUpdateOption() {
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
         // If updating frontend-display-related config, also refresh status
-        if (STATUS_RELATED_KEYS.has(variables.key)) {
+        if (shouldRefreshFrontendStatus(variables.key)) {
           queryClient.invalidateQueries({ queryKey: ['status'] })
           try {
             window.localStorage.removeItem('status')
           } catch {
             /* empty */
           }
+        }
+
+        if (variables.key === 'Notice') {
+          queryClient.invalidateQueries({ queryKey: ['notice'] })
         }
 
         toast.success(i18next.t('Setting updated successfully'))

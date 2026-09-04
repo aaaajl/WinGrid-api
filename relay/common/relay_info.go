@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/peakoffpeak"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
@@ -168,6 +169,11 @@ type RelayInfo struct {
 	// and again before settlement. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot
 	BillingRequestInput   *billingexpr.RequestInput
+
+	// PeakOffPeakSnapshot captures peak/off-peak pricing at pre-consume time.
+	// Non-nil only when billing mode is "peak_offpeak". Settlement must use
+	// EvalUnix from this snapshot, not wall clock.
+	PeakOffPeakSnapshot *peakoffpeak.Snapshot
 
 	// DurationBilling is set when billing mode is per_duration. It records the
 	// resolved size / duration / base price used for pre-consume.

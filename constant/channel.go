@@ -65,6 +65,7 @@ const (
 	// High IDs for fork/custom channels so they do not collide with upstream allocations.
 	ChannelTypeHappyHorse = 961
 	ChannelTypeAgnesVideo = 962
+	ChannelTypeWan30Video = 963
 )
 
 var ChannelBaseURLs = []string{
@@ -206,6 +207,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeNewAPI:         "New API",
 	ChannelTypeHappyHorse:     "HappyHorse",
 	ChannelTypeAgnesVideo:     "Agnes Video",
+	ChannelTypeWan30Video:     "Wan Video",
 }
 
 func GetChannelTypeName(channelType int) string {

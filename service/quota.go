@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/pkg/peakoffpeak"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -167,6 +168,17 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	if tieredOk {
 		tieredResult = tieredRes
 	}
+	var peakResult *peakoffpeak.Result
+	peakOk, peakQuota, peakRes := false, 0, (*peakoffpeak.Result)(nil)
+	if !tieredOk {
+		peakOk, peakQuota, peakRes = TryPeakOffPeakSettle(relayInfo, &dto.Usage{
+			PromptTokens:     usage.InputTokens,
+			CompletionTokens: usage.OutputTokens,
+		}, false)
+		if peakOk {
+			peakResult = peakRes
+		}
+	}
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.InputTokenDetails.TextTokens
@@ -204,6 +216,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	noteQuotaClamp(relayInfo, clamp)
 	if tieredOk {
 		quota = tieredQuota
+	} else if peakOk {
+		quota = peakQuota
 	}
 
 	totalTokens := usage.TotalTokens
@@ -240,6 +254,9 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if peakResult != nil {
+		InjectPeakOffPeakBillingInfo(other, relayInfo, peakResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
@@ -290,6 +307,15 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	if tieredOk {
 		tieredResult = tieredRes
 	}
+	var peakResult *peakoffpeak.Result
+	peakOk, peakQuota := false, 0
+	if !tieredOk {
+		var peakRes *peakoffpeak.Result
+		peakOk, peakQuota, peakRes = TryPeakOffPeakSettle(relayInfo, usage, false)
+		if peakOk {
+			peakResult = peakRes
+		}
+	}
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.PromptTokensDetails.TextTokens
@@ -327,6 +353,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	noteQuotaClamp(relayInfo, clamp)
 	if tieredOk {
 		quota = tieredQuota
+	} else if peakOk {
+		quota = peakQuota
 	}
 
 	totalTokens := usage.TotalTokens
@@ -363,6 +391,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if peakResult != nil {
+		InjectPeakOffPeakBillingInfo(other, relayInfo, peakResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

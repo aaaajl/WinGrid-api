@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { NoticeDialog } from '@/components/notice-dialog'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
@@ -443,6 +444,19 @@ export function PublicHeader(props: PublicHeaderProps) {
           })}
         </div>
       </Dialog>
+
+      {showNotifications ? (
+        <NoticeDialog
+          open={notifications.dialogOpen}
+          onOpenChange={notifications.setDialogOpen}
+          onCloseToday={notifications.closeNoticeDialogToday}
+          activeTab={notifications.activeTab}
+          onTabChange={notifications.setActiveTab}
+          notice={notifications.notice}
+          announcements={notifications.announcements}
+          loading={notifications.loading}
+        />
+      ) : null}
     </>
   )
 }

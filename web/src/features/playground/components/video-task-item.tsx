@@ -18,15 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { PlayIcon, Trash2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
+
 import {
   QueueItem,
   QueueItemContent,
   QueueItemActions,
   QueueItemAction,
 } from '@/components/ai-elements/queue'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { cn } from '@/lib/utils'
+
 import type {
   VideoRequestProfile,
   VideoTaskItem as VideoTaskItemType,
@@ -43,6 +45,7 @@ const PROFILE_LABELS: Record<VideoRequestProfile, string> = {
   seedance: 'Seedance',
   minimax_h3: 'MiniMax H3',
   agnes_video: 'Agnes Video',
+  wan30_video: 'Wan Video',
   generic: 'Video',
 }
 
@@ -60,7 +63,11 @@ function formatTime(unixSeconds: number): string {
   })
 }
 
-export function VideoTaskItem({ task, onPreview, onRemove }: VideoTaskItemProps) {
+export function VideoTaskItem({
+  task,
+  onPreview,
+  onRemove,
+}: VideoTaskItemProps) {
   const { t } = useTranslation()
 
   return (
@@ -79,7 +86,7 @@ export function VideoTaskItem({ task, onPreview, onRemove }: VideoTaskItemProps)
             <div className='flex min-w-0 items-center gap-1.5'>
               {task.profile && (
                 <Badge variant='secondary' className='h-4 px-1 text-[10px]'>
-                  {PROFILE_LABELS[task.profile]}
+                  {t(PROFILE_LABELS[task.profile])}
                 </Badge>
               )}
               <span className='text-muted-foreground truncate text-xs font-medium'>

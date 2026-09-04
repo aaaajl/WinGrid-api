@@ -158,6 +158,8 @@ export interface TokenOption {
   id: number
   name: string
   key: string
+  group: string
+  autoGroups: string[] | null
 }
 
 export interface VideoGenerationRequest {
@@ -190,6 +192,7 @@ export type VideoRequestProfile =
   | 'seedance'
   | 'minimax_h3'
   | 'agnes_video'
+  | 'wan30_video'
   | 'generic'
 
 export interface HappyHorseCapabilities {
@@ -217,10 +220,21 @@ export interface AgnesVideoCapabilities {
   supported_sizes: string[]
   supported_ratios: string[]
   duration_range: [number, number]
-  frame_rate_range: [number, number]
-  num_frames_range: [number, number]
+  frame_rate_range?: [number, number]
+  num_frames_range?: [number, number]
   fields: string[]
   form: 'agnes_video'
+}
+
+export interface Wan30VideoCapabilities {
+  supported_resolutions: string[]
+  supported_ratios: string[]
+  duration_range: [number, number]
+  smart_duration: boolean
+  media_types: string[]
+  modes: string[]
+  fields: string[]
+  form: 'wan30_video'
 }
 
 export interface GenericCapabilities {
@@ -233,6 +247,7 @@ export interface GenericCapabilities {
 export interface PlaygroundVideoModel {
   model: string
   tags: string[]
+  groups: string[]
   profile: VideoRequestProfile
   label: string
   capabilities:
@@ -240,6 +255,7 @@ export interface PlaygroundVideoModel {
     | SeedanceCapabilities
     | MiniMaxH3Capabilities
     | AgnesVideoCapabilities
+    | Wan30VideoCapabilities
     | GenericCapabilities
 }
 
@@ -290,6 +306,7 @@ export interface ImageCapabilities {
 export interface PlaygroundImageModel {
   model: string
   tags: string[]
+  groups: string[]
   profile: ImageRequestProfile
   label: string
   capabilities: ImageCapabilities

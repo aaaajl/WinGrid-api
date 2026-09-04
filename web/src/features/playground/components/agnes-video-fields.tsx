@@ -27,8 +27,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import type { AgnesVideoFormState } from '../../lib/video/build-video-request'
-import type { AgnesVideoCapabilities } from '../../types'
+import type { AgnesVideoFormState } from '../lib/video/build-video-request'
+import type { AgnesVideoCapabilities } from '../types'
 
 interface AgnesVideoFieldsProps {
   capabilities: AgnesVideoCapabilities
@@ -38,8 +38,16 @@ interface AgnesVideoFieldsProps {
 
 export function AgnesVideoFields(props: AgnesVideoFieldsProps) {
   const { t } = useTranslation()
-  const frameRateMin = props.capabilities.frame_rate_range[0]
-  const frameRateMax = props.capabilities.frame_rate_range[1]
+  const fields = props.capabilities.fields
+  const showFrameRate = fields.includes('frame_rate')
+  const showNumFrames = fields.includes('num_frames')
+  const showNegativePrompt = fields.includes('negative_prompt')
+  const showImage = fields.includes('image')
+  const showSeed = fields.includes('seed')
+  const showAdvanced = showNumFrames || showSeed || showNegativePrompt || showImage
+
+  const frameRateMin = props.capabilities.frame_rate_range?.[0] ?? 1
+  const frameRateMax = props.capabilities.frame_rate_range?.[1] ?? 60
 
   return (
     <>
@@ -99,108 +107,116 @@ export function AgnesVideoFields(props: AgnesVideoFieldsProps) {
         </div>
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <Label>
-          {t('Frame Rate')}: {props.state.frameRate} fps
-        </Label>
-        <Slider
-          max={frameRateMax}
-          min={frameRateMin}
-          step={1}
-          value={[props.state.frameRate]}
-          onValueChange={(v) => {
-            const arr = Array.isArray(v) ? v : [v]
-            props.onChange({ frameRate: arr[0] as number })
-          }}
-        />
-        <div className='text-muted-foreground flex justify-between text-xs'>
-          <span>
-            {frameRateMin} fps
-          </span>
-          <span>
-            {frameRateMax} fps
-          </span>
-        </div>
-      </div>
-
-      <Collapsible>
-        <CollapsibleTrigger className='text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-1 text-sm transition-colors [&[data-panel-open]>svg]:rotate-180'>
-          <ChevronDownIcon className='size-4 transition-transform' />
-          {t('Advanced Settings')}
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className='mt-2 flex flex-col gap-3'>
-            <div className='flex flex-col gap-1.5'>
-              <Label className='text-sm font-normal'>{t('Number of Frames')}</Label>
-              <Input
-                inputMode='numeric'
-                placeholder={t('Auto from duration and frame rate (8n+1)')}
-                value={props.state.numFrames ?? ''}
-                onChange={(e) => {
-                  const raw = e.target.value.trim()
-                  if (raw === '') {
-                    props.onChange({ numFrames: undefined })
-                    return
-                  }
-                  const parsed = Number.parseInt(raw, 10)
-                  if (Number.isFinite(parsed)) {
-                    props.onChange({ numFrames: parsed })
-                  }
-                }}
-              />
-              <p className='text-muted-foreground text-xs'>
-                {t('Must follow the 8n+1 rule (e.g. 121, 241). Leave empty to derive from duration.')}
-              </p>
-            </div>
-
-            <div className='flex flex-col gap-1.5'>
-              <Label className='text-sm font-normal'>{t('Seed')}</Label>
-              <Input
-                inputMode='numeric'
-                placeholder={t('Optional')}
-                value={props.state.seed ?? ''}
-                onChange={(e) => {
-                  const raw = e.target.value.trim()
-                  if (raw === '') {
-                    props.onChange({ seed: undefined })
-                    return
-                  }
-                  const parsed = Number.parseInt(raw, 10)
-                  if (Number.isFinite(parsed)) {
-                    props.onChange({ seed: parsed })
-                  }
-                }}
-              />
-            </div>
-
-            <div className='flex flex-col gap-1.5'>
-              <Label className='text-sm font-normal'>{t('Negative Prompt')}</Label>
-              <Input
-                placeholder={t('Optional')}
-                value={props.state.negativePrompt ?? ''}
-                onChange={(e) =>
-                  props.onChange({
-                    negativePrompt: e.target.value || undefined,
-                  })
-                }
-              />
-            </div>
-
-            <div className='flex flex-col gap-1.5'>
-              <Label className='text-sm font-normal'>{t('Reference Image URL')}</Label>
-              <Input
-                placeholder={t('Optional image-to-video input')}
-                value={props.state.image ?? ''}
-                onChange={(e) =>
-                  props.onChange({
-                    image: e.target.value.trim() || undefined,
-                  })
-                }
-              />
-            </div>
+      {showFrameRate && (
+        <div className='flex flex-col gap-1.5'>
+          <Label>
+            {t('Frame Rate')}: {props.state.frameRate} fps
+          </Label>
+          <Slider
+            max={frameRateMax}
+            min={frameRateMin}
+            step={1}
+            value={[props.state.frameRate]}
+            onValueChange={(v) => {
+              const arr = Array.isArray(v) ? v : [v]
+              props.onChange({ frameRate: arr[0] as number })
+            }}
+          />
+          <div className='text-muted-foreground flex justify-between text-xs'>
+            <span>{frameRateMin} fps</span>
+            <span>{frameRateMax} fps</span>
           </div>
-        </CollapsibleContent>
-      </Collapsible>
+        </div>
+      )}
+
+      {showAdvanced && (
+        <Collapsible>
+          <CollapsibleTrigger className='text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-1 text-sm transition-colors [&[data-panel-open]>svg]:rotate-180'>
+            <ChevronDownIcon className='size-4 transition-transform' />
+            {t('Advanced Settings')}
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className='mt-2 flex flex-col gap-3'>
+              {showNumFrames && (
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-sm font-normal'>{t('Number of Frames')}</Label>
+                  <Input
+                    inputMode='numeric'
+                    placeholder={t('Auto from duration and frame rate (8n+1)')}
+                    value={props.state.numFrames ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim()
+                      if (raw === '') {
+                        props.onChange({ numFrames: undefined })
+                        return
+                      }
+                      const parsed = Number.parseInt(raw, 10)
+                      if (Number.isFinite(parsed)) {
+                        props.onChange({ numFrames: parsed })
+                      }
+                    }}
+                  />
+                  <p className='text-muted-foreground text-xs'>
+                    {t('Must follow the 8n+1 rule (e.g. 121, 241). Leave empty to derive from duration.')}
+                  </p>
+                </div>
+              )}
+
+              {showSeed && (
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-sm font-normal'>{t('Seed')}</Label>
+                  <Input
+                    inputMode='numeric'
+                    placeholder={t('Optional')}
+                    value={props.state.seed ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim()
+                      if (raw === '') {
+                        props.onChange({ seed: undefined })
+                        return
+                      }
+                      const parsed = Number.parseInt(raw, 10)
+                      if (Number.isFinite(parsed)) {
+                        props.onChange({ seed: parsed })
+                      }
+                    }}
+                  />
+                </div>
+              )}
+
+              {showNegativePrompt && (
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-sm font-normal'>{t('Negative Prompt')}</Label>
+                  <Input
+                    placeholder={t('Optional')}
+                    value={props.state.negativePrompt ?? ''}
+                    onChange={(e) =>
+                      props.onChange({
+                        negativePrompt: e.target.value || undefined,
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              {showImage && (
+                <div className='flex flex-col gap-1.5'>
+                  <Label className='text-sm font-normal'>{t('Reference Image URL')}</Label>
+                  <Input
+                    placeholder={t('Optional image-to-video input')}
+                    value={props.state.image ?? ''}
+                    onChange={(e) =>
+                      props.onChange({
+                        image: e.target.value.trim() || undefined,
+                      })
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
     </>
   )
 }

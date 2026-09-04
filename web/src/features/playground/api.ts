@@ -81,7 +81,7 @@ export async function getUserModels(group: string): Promise<ModelOption[]> {
 
 /**
  * Get catalog-backed playground video models (t2v tag + profile).
- * Filtered by the authenticated user's group on the server.
+ * Filtered by the authenticated user's usable groups on the server.
  */
 export async function getPlaygroundVideoModels(): Promise<
   PlaygroundVideoModel[]
@@ -97,6 +97,7 @@ export async function getPlaygroundVideoModels(): Promise<
     .map((item: Partial<PlaygroundVideoModel>) => ({
       model: item.model ?? '',
       tags: Array.isArray(item.tags) ? item.tags : [],
+      groups: Array.isArray(item.groups) ? item.groups : [],
       profile: item.profile,
       label: item.label || item.model || '',
       capabilities: item.capabilities,
@@ -108,13 +109,14 @@ export async function getPlaygroundVideoModels(): Promise<
           item.profile === 'seedance' ||
           item.profile === 'minimax_h3' ||
           item.profile === 'agnes_video' ||
+          item.profile === 'wan30_video' ||
           item.profile === 'generic')
     ) as PlaygroundVideoModel[]
 }
 
 /**
  * Get catalog-backed playground image models (t2i tag + profile).
- * Filtered by the authenticated user's group on the server.
+ * Filtered by the authenticated user's usable groups on the server.
  */
 export async function getPlaygroundImageModels(): Promise<
   PlaygroundImageModel[]
@@ -130,6 +132,7 @@ export async function getPlaygroundImageModels(): Promise<
     .map((item: Partial<PlaygroundImageModel>) => ({
       model: item.model ?? '',
       tags: Array.isArray(item.tags) ? item.tags : [],
+      groups: Array.isArray(item.groups) ? item.groups : [],
       profile: item.profile,
       label: item.label || item.model || '',
       capabilities: item.capabilities,
@@ -174,11 +177,27 @@ export async function getUserTokens(): Promise<TokenOption[]> {
   if (!success || !Array.isArray(data?.items)) return []
   return data.items
     .filter((t: { status: number }) => t.status === 1)
-    .map((t: { id: number; name: string; key: string }) => ({
-      id: t.id,
-      name: t.name,
-      key: t.key,
-    }))
+    .map(
+      (t: {
+        id: number
+        name: string
+        key: string
+        group?: string | null
+        auto_groups?: string[] | null
+      }) => ({
+        id: t.id,
+        name: t.name,
+        key: t.key,
+        group: t.group ?? '',
+        autoGroups: Array.isArray(t.auto_groups) ? t.auto_groups : null,
+      })
+    )
+}
+
+export async function getInheritedTokenAutoGroups(): Promise<string[]> {
+  const res = await api.get('/api/token/auto-groups')
+  const groups = res.data?.data?.groups
+  return Array.isArray(groups) ? groups : []
 }
 
 /**
@@ -269,7 +288,12 @@ export async function submitImageGeneration(
     return res.data
   } catch (err) {
     const axiosErr = err as {
-      response?: { data?: ImageGenerationResponse & { message?: string; error?: { message?: string } } }
+      response?: {
+        data?: ImageGenerationResponse & {
+          message?: string
+          error?: { message?: string }
+        }
+      }
       message?: string
     }
     const data = axiosErr.response?.data

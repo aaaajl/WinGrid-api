@@ -116,3 +116,12 @@ export function isPerDurationModel(model: PricingModel): boolean {
     model.billing_mode === 'per_duration' && model.duration_pricing != null
   )
 }
+
+/**
+ * Check if model uses peak/off-peak token pricing.
+ */
+export function isPeakOffPeakModel(model: PricingModel): boolean {
+  return (
+    model.billing_mode === 'peak_offpeak' && model.peak_offpeak_pricing != null
+  )
+}

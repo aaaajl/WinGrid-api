@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router'
+import { ImageIcon, KeyRoundIcon, Loader2Icon } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,12 +19,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
-import { ImageIcon, KeyRoundIcon, Loader2Icon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -30,8 +31,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { fetchTokenKey, getUserTokens } from '../api'
+import { Textarea } from '@/components/ui/textarea'
+import { useAuthStore } from '@/stores/auth-store'
+
+import {
+  fetchTokenKey,
+  getInheritedTokenAutoGroups,
+  getUserTokens,
+} from '../api'
 import { STORAGE_KEYS_IMAGE } from '../constants'
+import {
+  getCompatibleTokens,
+  selectCompatibleTokenId,
+} from '../lib/api-key-selection'
 import {
   buildImageRequest,
   getDefaultImageFormState,
@@ -72,6 +84,7 @@ interface ImageInputFormProps {
 
 export function ImageInputForm(props: ImageInputFormProps) {
   const { t } = useTranslation()
+  const userGroup = useAuthStore((state) => state.auth.user?.group ?? '')
   const initialDraft = useMemo(() => loadImageDraft(), [])
 
   const [selectedModelName, setSelectedModelName] = useState(
@@ -81,13 +94,14 @@ export function ImageInputForm(props: ImageInputFormProps) {
     () => initialDraft?.form ?? null
   )
   const [tokens, setTokens] = useState<TokenOption[]>([])
+  const [inheritedAutoGroups, setInheritedAutoGroups] = useState<string[]>([])
   const [selectedTokenId, setSelectedTokenId] = useState(
     () =>
       initialDraft?.tokenId ||
       loadStoredTokenId(STORAGE_KEYS_IMAGE.TOKEN_ID) ||
       ''
   )
-  const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+  const [isLoadingTokens, setIsLoadingTokens] = useState(true)
 
   const selectedModel = useMemo(
     () =>
@@ -101,28 +115,32 @@ export function ImageInputForm(props: ImageInputFormProps) {
     return tokens.find((tk) => String(tk.id) === selectedTokenId)?.name ?? ''
   }, [tokens, selectedTokenId])
 
+  const compatibleTokens = useMemo(
+    () =>
+      getCompatibleTokens(
+        tokens,
+        selectedModel?.groups ?? [],
+        userGroup,
+        inheritedAutoGroups
+      ),
+    [tokens, selectedModel, userGroup, inheritedAutoGroups]
+  )
+
   useEffect(() => {
     let cancelled = false
     const loadTokens = async () => {
       setIsLoadingTokens(true)
       try {
-        const list = await getUserTokens()
+        const [list, autoGroups] = await Promise.all([
+          getUserTokens(),
+          getInheritedTokenAutoGroups().catch(() => []),
+        ])
         if (cancelled) return
         setTokens(list)
+        setInheritedAutoGroups(autoGroups)
         if (list.length === 0) {
           setSelectedTokenId('')
-          return
         }
-        setSelectedTokenId((current) => {
-          if (current && list.some((token) => String(token.id) === current)) {
-            return current
-          }
-          const saved = loadStoredTokenId(STORAGE_KEYS_IMAGE.TOKEN_ID)
-          if (saved && list.some((token) => String(token.id) === saved)) {
-            return saved
-          }
-          return String(list[0].id)
-        })
       } catch {
         if (!cancelled) setTokens([])
       } finally {
@@ -134,6 +152,14 @@ export function ImageInputForm(props: ImageInputFormProps) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (isLoadingTokens || !selectedModel) return
+    const saved = loadStoredTokenId(STORAGE_KEYS_IMAGE.TOKEN_ID)
+    setSelectedTokenId((current) =>
+      selectCompatibleTokenId(compatibleTokens, current, saved)
+    )
+  }, [compatibleTokens, isLoadingTokens, selectedModel])
 
   useEffect(() => {
     if (props.imageModels.length === 0) return
@@ -191,6 +217,7 @@ export function ImageInputForm(props: ImageInputFormProps) {
   const canSubmit =
     !!formState?.prompt.trim() &&
     !!selectedTokenId &&
+    compatibleTokens.some((token) => String(token.id) === selectedTokenId) &&
     !!selectedModel &&
     !!formState
 
@@ -199,16 +226,15 @@ export function ImageInputForm(props: ImageInputFormProps) {
     if (!formState.prompt.trim()) return
     if (!selectedTokenId) return
 
-    const selectedToken = tokens.find((tk) => String(tk.id) === selectedTokenId)
+    const selectedToken = compatibleTokens.find(
+      (token) => String(token.id) === selectedTokenId
+    )
     if (!selectedToken) return
 
     const realKey = await fetchTokenKey(selectedToken.id)
     if (!realKey) return
 
-    const clampedN = Math.min(
-      Math.max(formState.n, nRange[0]),
-      nRange[1]
-    )
+    const clampedN = Math.min(Math.max(formState.n, nRange[0]), nRange[1])
     const req = buildImageRequest(
       { ...formState, n: clampedN },
       selectedModel.profile
@@ -237,7 +263,7 @@ export function ImageInputForm(props: ImageInputFormProps) {
           {t('API Key')}
         </Label>
         <Select
-          disabled={isLoadingTokens || tokens.length === 0}
+          disabled={isLoadingTokens || compatibleTokens.length === 0}
           value={selectedTokenId}
           onValueChange={(v) => {
             if (v != null) setSelectedTokenId(v)
@@ -253,17 +279,30 @@ export function ImageInputForm(props: ImageInputFormProps) {
             )}
           </SelectTrigger>
           <SelectContent>
-            {tokens.map((token) => (
+            {compatibleTokens.map((token) => (
               <SelectItem key={token.id} value={String(token.id)}>
-                {token.name}
+                {token.name} ({token.group || userGroup})
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {tokens.length === 0 && !isLoadingTokens && (
-          <p className='text-muted-foreground text-xs'>
-            {t('Please create an API key first in the Keys page.')}
-          </p>
+        {compatibleTokens.length === 0 && !isLoadingTokens && selectedModel && (
+          <div className='border-warning/40 bg-warning/5 flex items-center justify-between gap-3 rounded-md border p-2'>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'No API key can access this model. Create a key for one of these groups: {{groups}}.',
+                { groups: selectedModel.groups.join(', ') }
+              )}
+            </p>
+            <Button
+              size='sm'
+              variant='outline'
+              className='shrink-0'
+              render={<Link to='/keys' />}
+            >
+              {t('Create API Key')}
+            </Button>
+          </div>
         )}
       </div>
 

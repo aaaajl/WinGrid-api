@@ -13,6 +13,8 @@ web/node_modules
 .env
 deploy/master-slave/.master-runtime-mode
 deploy/master-slave/.slave-runtime-mode
+deploy/master-slave/*.tar.gz
+localFiles/
 one-api
 new-api
 /__debug_bin*

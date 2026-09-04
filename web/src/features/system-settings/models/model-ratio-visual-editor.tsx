@@ -51,7 +51,10 @@ import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMediaQuery } from '@/hooks'
 
 import { safeJsonParse } from '../utils/json-parser'
-import type { PricingMode } from './model-pricing-core'
+import {
+  peakOffPeakFormToConfig,
+  type PricingMode,
+} from './model-pricing-core'
 import {
   ModelPricingEditorPanel,
   type ModelPricingEditorPanelHandle,
@@ -64,6 +67,7 @@ import {
   isBasePricingUnset,
   type DurationPricingConfig,
   type ModelRow,
+  type PeakOffPeakConfig,
 } from './model-pricing-snapshots'
 import { buildModelRatioColumns } from './model-ratio-table-columns'
 
@@ -79,6 +83,7 @@ type ModelRatioVisualEditorProps = {
   savedBillingMode: string
   savedBillingExpr: string
   savedDurationPricing: string
+  savedPeakOffPeakPricing: string
   modelPrice: string
   modelRatio: string
   cacheRatio: string
@@ -90,6 +95,7 @@ type ModelRatioVisualEditorProps = {
   billingMode: string
   billingExpr: string
   durationPricing: string
+  peakOffPeakPricing: string
   candidateModelNames?: string[]
   candidateModelsLoading?: boolean
   filterMode?: 'all' | 'unset'
@@ -120,6 +126,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedBillingMode,
     savedBillingExpr,
     savedDurationPricing,
+    savedPeakOffPeakPricing,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -131,6 +138,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     billingMode,
     billingExpr,
     durationPricing,
+    peakOffPeakPricing,
     candidateModelNames,
     candidateModelsLoading,
     filterMode = 'all',
@@ -206,6 +214,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode: savedBillingMode,
       billingExpr: savedBillingExpr,
       durationPricing: savedDurationPricing,
+      peakOffPeakPricing: savedPeakOffPeakPricing,
     })
     const draftRows = buildModelSnapshots({
       modelPrice,
@@ -219,6 +228,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode,
       billingExpr,
       durationPricing,
+      peakOffPeakPricing,
     })
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
@@ -263,6 +273,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedBillingMode,
     savedBillingExpr,
     savedDurationPricing,
+    savedPeakOffPeakPricing,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -274,6 +285,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     billingMode,
     billingExpr,
     durationPricing,
+    peakOffPeakPricing,
   ])
 
   const modeCounts = useMemo(
@@ -283,7 +295,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
           const mode =
             model.billingMode === 'per-request' ||
             model.billingMode === 'tiered_expr' ||
-            model.billingMode === 'per_duration'
+            model.billingMode === 'per_duration' ||
+            model.billingMode === 'peak_offpeak'
               ? model.billingMode
               : 'per-token'
           acc[mode] += 1
@@ -294,8 +307,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
           'per-request': 0,
           tiered_expr: 0,
           per_duration: 0,
+          peak_offpeak: 0,
         } as Record<
-          'per-token' | 'per-request' | 'tiered_expr' | 'per_duration',
+          | 'per-token'
+          | 'per-request'
+          | 'tiered_expr'
+          | 'per_duration'
+          | 'peak_offpeak',
           number
         >
       ),
@@ -310,6 +328,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         editBillingMode = 'tiered_expr'
       } else if (editableModel.billingMode === 'per_duration') {
         editBillingMode = 'per_duration'
+      } else if (editableModel.billingMode === 'peak_offpeak') {
+        editBillingMode = 'peak_offpeak'
       } else if (editableModel.price && editableModel.price !== '') {
         editBillingMode = 'per-request'
       }
@@ -328,6 +348,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         requestRuleExpr: editableModel.requestRuleExpr,
         fallbackPrice: editableModel.fallbackPrice,
         sizePrices: editableModel.sizePrices,
+        peakOffPeak: editableModel.peakOffPeak,
       })
       setEditorOpen(true)
       if (isMobile) setSheetOpen(true)
@@ -401,6 +422,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
       const durationPricingMap = safeJsonParse<
         Record<string, DurationPricingConfig>
       >(durationPricing, { fallback: {}, silent: true })
+      const peakOffPeakPricingMap = safeJsonParse<
+        Record<string, PeakOffPeakConfig>
+      >(peakOffPeakPricing, { fallback: {}, silent: true })
 
       delete priceMap[name]
       delete ratioMap[name]
@@ -413,6 +437,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       delete billingModeMap[name]
       delete billingExprMap[name]
       delete durationPricingMap[name]
+      delete peakOffPeakPricingMap[name]
 
       onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
       onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
@@ -437,6 +462,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.duration_pricing',
         JSON.stringify(durationPricingMap, null, 2)
       )
+      onChange(
+        'billing_setting.peak_offpeak_pricing',
+        JSON.stringify(peakOffPeakPricingMap, null, 2)
+      )
 
       if (editData?.name === name) {
         setEditData(null)
@@ -456,6 +485,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode,
       billingExpr,
       durationPricing,
+      peakOffPeakPricing,
       onChange,
       editData,
     ]
@@ -550,6 +580,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
       const durationPricingMap = safeJsonParse<
         Record<string, DurationPricingConfig>
       >(durationPricing, { fallback: {}, silent: true })
+      const peakOffPeakPricingMap = safeJsonParse<
+        Record<string, PeakOffPeakConfig>
+      >(peakOffPeakPricing, { fallback: {}, silent: true })
 
       const setIfPresent = (
         target: Record<string, number>,
@@ -573,6 +606,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         delete billingModeMap[name]
         delete billingExprMap[name]
         delete durationPricingMap[name]
+        delete peakOffPeakPricingMap[name]
 
         if (data.billingMode === 'tiered_expr') {
           const combined = combineBillingExpr(
@@ -611,6 +645,14 @@ const ModelRatioVisualEditorComponent = forwardRef<
             fallback_price: Number.isFinite(fallback) ? fallback : 0,
             size_prices: sizePrices,
           }
+        } else if (data.billingMode === 'peak_offpeak') {
+          const cfg = data.peakOffPeak
+            ? peakOffPeakFormToConfig(data.peakOffPeak)
+            : null
+          if (cfg) {
+            billingModeMap[name] = 'peak_offpeak'
+            peakOffPeakPricingMap[name] = cfg
+          }
         } else if (data.price && data.price !== '') {
           setIfPresent(priceMap, name, data.price)
         } else {
@@ -647,6 +689,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.duration_pricing',
         JSON.stringify(durationPricingMap, null, 2)
       )
+      onChange(
+        'billing_setting.peak_offpeak_pricing',
+        JSON.stringify(peakOffPeakPricingMap, null, 2)
+      )
     },
     [
       modelPrice,
@@ -660,6 +706,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingMode,
       billingExpr,
       durationPricing,
+      peakOffPeakPricing,
       onChange,
     ]
   )
@@ -758,6 +805,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Per-duration',
                     value: 'per_duration',
                     count: modeCounts.per_duration,
+                  },
+                  {
+                    label: 'Peak / Off-peak',
+                    value: 'peak_offpeak',
+                    count: modeCounts.peak_offpeak,
                   },
                 ],
               },
@@ -899,6 +951,8 @@ export const ModelRatioVisualEditor = memo(
       prevProps.savedBillingMode === nextProps.savedBillingMode &&
       prevProps.savedBillingExpr === nextProps.savedBillingExpr &&
       prevProps.savedDurationPricing === nextProps.savedDurationPricing &&
+      prevProps.savedPeakOffPeakPricing ===
+        nextProps.savedPeakOffPeakPricing &&
       prevProps.modelPrice === nextProps.modelPrice &&
       prevProps.modelRatio === nextProps.modelRatio &&
       prevProps.cacheRatio === nextProps.cacheRatio &&
@@ -910,6 +964,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
       prevProps.durationPricing === nextProps.durationPricing &&
+      prevProps.peakOffPeakPricing === nextProps.peakOffPeakPricing &&
       prevProps.candidateModelNames === nextProps.candidateModelNames &&
       prevProps.candidateModelsLoading === nextProps.candidateModelsLoading &&
       prevProps.filterMode === nextProps.filterMode &&

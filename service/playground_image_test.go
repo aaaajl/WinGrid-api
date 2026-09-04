@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,6 +77,7 @@ func TestListPlaygroundImageModels(t *testing.T) {
 		switch item.Model {
 		case "dall-e-3":
 			assert.Equal(t, ImageProfileDalle3, item.Profile)
+			assert.Equal(t, []string{"default"}, item.Groups)
 			assert.Equal(t, [2]int{1, 1}, item.Capabilities.NRange)
 			assert.Equal(t, []string{"prompt", "size", "n"}, item.Capabilities.Fields)
 		case "gpt-image-1":
@@ -93,4 +95,35 @@ func TestListPlaygroundImageModels(t *testing.T) {
 		}
 		assert.NotEmpty(t, item.Capabilities.SupportedSizes)
 	}
+}
+
+func TestListPlaygroundImageModelsUsesUsableGroups(t *testing.T) {
+	db := setupPlaygroundVideoTestDB(t)
+	originalUsableGroups := setting.UserUsableGroups2JSONString()
+	require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default"}`))
+	t.Cleanup(func() {
+		require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsableGroups))
+	})
+
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "dall-e-3", ChannelId: 1, Enabled: true},
+		{Group: "secret", Model: "secret-t2i", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	now := common.GetTimestamp()
+	require.NoError(t, db.Create(&[]model.Model{
+		{ModelName: "dall-e-3", Tags: "t2i", Status: 1, CreatedTime: now, UpdatedTime: now},
+		{ModelName: "secret-t2i", Tags: "t2i", Status: 1, CreatedTime: now, UpdatedTime: now},
+	}).Error)
+
+	models, err := ListPlaygroundImageModels("svip")
+	require.NoError(t, err)
+	names := make([]string, 0, len(models))
+	for _, item := range models {
+		names = append(names, item.Model)
+	}
+	assert.Contains(t, names, "dall-e-3")
+	assert.NotContains(t, names, "secret-t2i")
+	require.Len(t, models, 1)
+	assert.Equal(t, []string{"default"}, models[0].Groups)
 }

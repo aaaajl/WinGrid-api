@@ -30,7 +30,13 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isPerDurationModel, isTokenBasedModel } from '../lib/model-helpers'
+import {
+  getDisplayGroupRatio,
+  isPeakOffPeakModel,
+  isPerDurationModel,
+  isTokenBasedModel,
+} from '../lib/model-helpers'
+import { formatPeakOffPeakUnitPrice } from '../lib/peak-offpeak-price'
 import {
   formatDurationSummaryPrice,
   formatPrice,
@@ -60,6 +66,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
   const isPerDuration = isPerDurationModel(props.model)
+  const isPeakOffPeak = isPeakOffPeakModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
@@ -97,7 +104,41 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   }
 
   let priceSummary: ReactNode
-  if (dynamicSummary) {
+  if (isPeakOffPeak) {
+    const cfg = props.model.peak_offpeak_pricing
+    const peakPriceOptions = {
+      tokenUnit,
+      showRechargePrice,
+      priceRate,
+      usdExchangeRate,
+      groupRatioMultiplier: getDisplayGroupRatio(
+        props.model,
+        props.selectedGroup
+      ),
+    }
+    priceSummary = (
+      <span className='flex w-full min-w-0 flex-col gap-y-0.5'>
+        <span className='text-muted-foreground whitespace-nowrap'>
+          {t('From')} {t('Input')}{' '}
+          <span className='text-foreground font-mono font-semibold'>
+            {formatPeakOffPeakUnitPrice(
+              cfg?.off_peak.cache_miss ?? 0,
+              peakPriceOptions
+            )}
+          </span>
+        </span>
+        <span className='text-muted-foreground whitespace-nowrap'>
+          {t('Output')}{' '}
+          <span className='text-foreground font-mono font-semibold'>
+            {formatPeakOffPeakUnitPrice(
+              cfg?.off_peak.completion ?? 0,
+              peakPriceOptions
+            )}
+          </span>
+        </span>
+      </span>
+    )
+  } else if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
       priceSummary = (
         <span className='min-w-0'>

@@ -26,7 +26,8 @@ import (
 // Request / Response structures
 // ============================
 
-type createRequest struct {
+// createRequestV20 is the Agnes Video 2.0 create-task body (pixel width/height).
+type createRequestV20 struct {
 	Model             string         `json:"model"`
 	Prompt            string         `json:"prompt"`
 	Image             string         `json:"image,omitempty"`
@@ -39,6 +40,29 @@ type createRequest struct {
 	Seed              *int           `json:"seed,omitempty"`
 	NegativePrompt    string         `json:"negative_prompt,omitempty"`
 	ExtraBody         map[string]any `json:"extra_body,omitempty"`
+}
+
+// createRequestV25 is the Agnes Video 2.5 create-task body.
+// Upstream rejects width/height/num_frames/frame_rate and similar fields.
+type createRequestV25 struct {
+	Model       string           `json:"model"`
+	Prompt      string           `json:"prompt"`
+	Mode        string           `json:"mode"`
+	Seconds     string           `json:"seconds,omitempty"`
+	Size        string           `json:"size,omitempty"`
+	AspectRatio string           `json:"aspect_ratio,omitempty"`
+	Seed        *int             `json:"seed,omitempty"`
+	FirstFrame  string           `json:"first_frame,omitempty"`
+	LastFrame   string           `json:"last_frame,omitempty"`
+	Images      []string         `json:"images,omitempty"`
+	Audios      []string         `json:"audios,omitempty"`
+	Videos      []v25VideoRef    `json:"videos,omitempty"`
+}
+
+type v25VideoRef struct {
+	URL           string   `json:"url"`
+	StartSeconds  *float64 `json:"start_seconds,omitempty"`
+	RequireAudio  *bool    `json:"require_audio,omitempty"`
 }
 
 type createResponse struct {
@@ -91,6 +115,12 @@ type metadataOverrides struct {
 	NumInferenceSteps *int           `json:"num_inference_steps,omitempty"`
 	Seed              *int           `json:"seed,omitempty"`
 	NegativePrompt    string         `json:"negative_prompt,omitempty"`
+	AspectRatio       string         `json:"aspect_ratio,omitempty"`
+	FirstFrame        string         `json:"first_frame,omitempty"`
+	LastFrame         string         `json:"last_frame,omitempty"`
+	Images            []string       `json:"images,omitempty"`
+	Audios            []string       `json:"audios,omitempty"`
+	Videos            []v25VideoRef  `json:"videos,omitempty"`
 	ExtraBody         map[string]any `json:"extra_body,omitempty"`
 }
 
@@ -126,6 +156,23 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if seconds <= 0 {
 		seconds = DefaultSeconds
 	}
+
+	modelName := strings.TrimSpace(taskReq.Model)
+	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		modelName = info.UpstreamModelName
+	}
+
+	if isAgnesVideo25(modelName) {
+		if seconds < MinSecondsV25 || seconds > MaxSecondsV25 {
+			return service.TaskErrorWrapperLocal(
+				fmt.Errorf("seconds must be between %d and %d for Agnes Video 2.5", MinSecondsV25, MaxSecondsV25),
+				"invalid_seconds",
+				http.StatusBadRequest,
+			)
+		}
+		return nil
+	}
+
 	if seconds > relaycommon.MaxTaskDurationSeconds {
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("seconds must be between 1 and %d", relaycommon.MaxTaskDurationSeconds),
@@ -430,7 +477,7 @@ func buildFetchURL(baseUrl string, body map[string]any) (string, error) {
 	return fmt.Sprintf("%s/agnesapi?%s", base, q.Encode()), nil
 }
 
-func convertToAgnesRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) (*createRequest, error) {
+func convertToAgnesRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubmitReq) (any, error) {
 	var meta metadataOverrides
 	if req.Metadata != nil {
 		if err := taskcommon.UnmarshalMetadata(req.Metadata, &meta); err != nil {
@@ -443,7 +490,14 @@ func convertToAgnesRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubm
 		modelName = info.UpstreamModelName
 	}
 
-	out := &createRequest{
+	if isAgnesVideo25(modelName) {
+		return convertToAgnesRequestV25(modelName, req, meta)
+	}
+	return convertToAgnesRequestV20(modelName, req, meta)
+}
+
+func convertToAgnesRequestV20(modelName string, req relaycommon.TaskSubmitReq, meta metadataOverrides) (*createRequestV20, error) {
+	out := &createRequestV20{
 		Model:  modelName,
 		Prompt: strings.TrimSpace(req.Prompt),
 	}
@@ -498,6 +552,201 @@ func convertToAgnesRequest(info *relaycommon.RelayInfo, req relaycommon.TaskSubm
 	}
 	out.NumFrames = common.GetPointer(numFrames)
 	return out, nil
+}
+
+func convertToAgnesRequestV25(modelName string, req relaycommon.TaskSubmitReq, meta metadataOverrides) (*createRequestV25, error) {
+	seconds := resolveSeconds(req)
+	if seconds <= 0 {
+		seconds = DefaultSeconds
+	}
+	if seconds < MinSecondsV25 || seconds > MaxSecondsV25 {
+		return nil, fmt.Errorf("seconds must be between %d and %d for Agnes Video 2.5", MinSecondsV25, MaxSecondsV25)
+	}
+
+	size, aspectRatio := resolveSizeV25(req.Size, meta.AspectRatio)
+	if _, ok := supportedSizesV25[size]; !ok {
+		return nil, fmt.Errorf("size must be one of 720P, 960P, 2K for Agnes Video 2.5")
+	}
+	if _, ok := supportedAspectRatiosV25[aspectRatio]; !ok {
+		return nil, fmt.Errorf("aspect_ratio is not supported for Agnes Video 2.5")
+	}
+
+	firstFrame := strings.TrimSpace(meta.FirstFrame)
+	lastFrame := strings.TrimSpace(meta.LastFrame)
+	images := trimNonEmptyStrings(meta.Images)
+	audios := trimNonEmptyStrings(meta.Audios)
+	videos := filterV25Videos(meta.Videos)
+
+	// Playground / OpenAI-style image maps to keyframe first_frame for 2.5.
+	legacyImage := strings.TrimSpace(meta.Image)
+	if legacyImage == "" {
+		legacyImage = strings.TrimSpace(req.Image)
+	}
+	if legacyImage == "" && len(req.Images) > 0 {
+		legacyImage = strings.TrimSpace(req.Images[0])
+	}
+	if legacyImage == "" {
+		legacyImage = strings.TrimSpace(req.InputReference)
+	}
+	if firstFrame == "" && legacyImage != "" {
+		firstFrame = legacyImage
+	}
+
+	mode := strings.TrimSpace(meta.Mode)
+	if mode == "" {
+		mode = strings.TrimSpace(req.Mode)
+	}
+	if mode == "" {
+		switch {
+		case firstFrame != "" || lastFrame != "":
+			mode = "keyframe"
+		case len(images) > 0 || len(audios) > 0 || len(videos) > 0:
+			mode = "reference"
+		default:
+			mode = "text"
+		}
+	}
+
+	out := &createRequestV25{
+		Model:       modelName,
+		Prompt:      strings.TrimSpace(req.Prompt),
+		Mode:        mode,
+		Seconds:     strconv.Itoa(seconds),
+		Size:        size,
+		AspectRatio: aspectRatio,
+		Seed:        meta.Seed,
+	}
+
+	switch mode {
+	case "keyframe":
+		out.FirstFrame = firstFrame
+		out.LastFrame = lastFrame
+		if out.FirstFrame == "" && out.LastFrame == "" {
+			return nil, fmt.Errorf("keyframe mode requires first_frame or last_frame")
+		}
+	case "reference":
+		out.Images = images
+		out.Audios = audios
+		out.Videos = videos
+		if len(out.Images) == 0 && len(out.Audios) == 0 && len(out.Videos) == 0 {
+			return nil, fmt.Errorf("reference mode requires images, audios, or videos")
+		}
+	case "text":
+		// text mode must not include media fields
+	default:
+		return nil, fmt.Errorf("mode must be text, keyframe, or reference")
+	}
+
+	return out, nil
+}
+
+func isAgnesVideo25(modelName string) bool {
+	lower := strings.ToLower(strings.TrimSpace(modelName))
+	return strings.Contains(lower, "agnes-video-2.5") ||
+		strings.Contains(lower, "agnes-video-v2.5") ||
+		strings.Contains(lower, "agnes-video-2-5")
+}
+
+func resolveSizeV25(size, aspectRatio string) (string, string) {
+	aspectRatio = strings.TrimSpace(aspectRatio)
+	size = strings.TrimSpace(size)
+	upper := strings.ToUpper(size)
+
+	if _, ok := supportedSizesV25[upper]; ok {
+		if aspectRatio == "" {
+			aspectRatio = DefaultRatioV25
+		}
+		return upper, aspectRatio
+	}
+
+	// Recover from 2.0-style WxH payloads that Playground may still emit.
+	if w, h, ok := parseWxH(size); ok {
+		if aspectRatio == "" {
+			aspectRatio = inferAspectRatio(w, h)
+		}
+		return DefaultSizeV25, aspectRatio
+	}
+
+	if size == "" {
+		size = DefaultSizeV25
+	}
+	if aspectRatio == "" {
+		aspectRatio = DefaultRatioV25
+	}
+	return strings.ToUpper(size), aspectRatio
+}
+
+func inferAspectRatio(w, h int) string {
+	if w <= 0 || h <= 0 {
+		return DefaultRatioV25
+	}
+	type candidate struct {
+		label string
+		w, h  int
+	}
+	// Prefer documented 720P pixel pairs when recovering from WxH.
+	candidates := []candidate{
+		{"21:9", 21, 9},
+		{"16:9", 16, 9},
+		{"4:3", 4, 3},
+		{"1:1", 1, 1},
+		{"3:4", 3, 4},
+		{"9:16", 9, 16},
+	}
+	best := DefaultRatioV25
+	bestDiff := 1e9
+	rw := float64(w) / float64(h)
+	for _, c := range candidates {
+		diff := absFloat(rw - float64(c.w)/float64(c.h))
+		if diff < bestDiff {
+			bestDiff = diff
+			best = c.label
+		}
+	}
+	return best
+}
+
+func absFloat(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+func trimNonEmptyStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			out = append(out, v)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func filterV25Videos(videos []v25VideoRef) []v25VideoRef {
+	if len(videos) == 0 {
+		return nil
+	}
+	out := make([]v25VideoRef, 0, len(videos))
+	for _, v := range videos {
+		url := strings.TrimSpace(v.URL)
+		if url == "" {
+			continue
+		}
+		v.URL = url
+		out = append(out, v)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func resolveSeconds(req relaycommon.TaskSubmitReq) int {
