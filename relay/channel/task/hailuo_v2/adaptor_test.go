@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -36,12 +37,15 @@ func TestTaskAdaptorCreatesPublicTaskAndKeepsUpstreamIDPrivate(t *testing.T) {
 	}
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader(`{"task_id":"424010985738629"}`))}
 
-	upstreamID, _, taskErr := (&TaskAdaptor{}).DoResponse(c, resp, info)
+	parsed, taskErr := (&TaskAdaptor{}).ParseResponse(c, resp, info)
 
 	require.Nil(t, taskErr)
-	require.Equal(t, "424010985738629", upstreamID)
-	require.Contains(t, recorder.Body.String(), `"id":"task_public"`)
-	require.NotContains(t, recorder.Body.String(), upstreamID)
+	require.NotNil(t, parsed)
+	require.Equal(t, "424010985738629", parsed.UpstreamTaskID)
+	video, ok := parsed.ClientResponse.(*dto.OpenAIVideo)
+	require.True(t, ok)
+	require.Equal(t, "task_public", video.ID)
+	require.NotContains(t, recorder.Body.String(), "424010985738629")
 }
 
 func TestTaskAdaptorFetchesAndParsesSucceededTask(t *testing.T) {
@@ -53,13 +57,13 @@ func TestTaskAdaptorFetchesAndParsesSucceededTask(t *testing.T) {
 	defer server.Close()
 
 	adaptor := &TaskAdaptor{}
-	resp, err := adaptor.FetchTask(server.URL, "secret", map[string]any{"task_id": "424010985738629"}, "")
+	resp, err := adaptor.FetchTask(server.URL, "secret", &model.Task{TaskID: "424010985738629"}, "")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	result, err := adaptor.ParseTaskResult(body)
+	result, err := adaptor.ParseTaskResult(nil, nil, body)
 
 	require.NoError(t, err)
 	require.Equal(t, string(model.TaskStatusSuccess), result.Status)
@@ -68,7 +72,7 @@ func TestTaskAdaptorFetchesAndParsesSucceededTask(t *testing.T) {
 }
 
 func TestTaskAdaptorKeepsTaskPendingOnQueryError(t *testing.T) {
-	_, err := (&TaskAdaptor{}).ParseTaskResult([]byte(`{"type":"error","error":{"type":"rate_limit_error","message":"rate limit","http_code":"429"}}`))
+	_, err := (&TaskAdaptor{}).ParseTaskResult(nil, nil, []byte(`{"type":"error","error":{"type":"rate_limit_error","message":"rate limit","http_code":"429"}}`))
 
 	require.Error(t, err)
 }

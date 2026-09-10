@@ -215,14 +215,14 @@ func validParameters() Wan30Parameters {
 func TestParseTaskResultMapsSuccessAndUnknown(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 
-	success, err := adaptor.ParseTaskResult([]byte(`{
+	success, err := adaptor.ParseTaskResult(nil, nil, []byte(`{
 		"output":{"task_id":"upstream","task_status":"SUCCEEDED","video_url":"https://cdn.example.com/video.mp4"}
 	}`))
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusSuccess, success.Status)
 	assert.Equal(t, "https://cdn.example.com/video.mp4", success.Url)
 
-	unknown, err := adaptor.ParseTaskResult([]byte(`{
+	unknown, err := adaptor.ParseTaskResult(nil, nil, []byte(`{
 		"output":{"task_id":"expired","task_status":"UNKNOWN"}
 	}`))
 	require.NoError(t, err)

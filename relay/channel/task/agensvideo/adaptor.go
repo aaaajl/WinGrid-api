@@ -256,31 +256,27 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *taskdto.TaskError) {
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *taskdto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 	}
 	_ = resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		taskErr = service.TaskErrorWrapper(
+		return nil, service.TaskErrorWrapper(
 			fmt.Errorf("upstream status %d: %s", resp.StatusCode, string(responseBody)),
 			"upstream_error",
 			resp.StatusCode,
 		)
-		return
 	}
 
 	var dResp createResponse
 	if err := common.Unmarshal(responseBody, &dResp); err != nil {
-		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 	}
 	if dResp.Error != nil && dResp.Error.Message != "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("%s", dResp.Error.Message), "upstream_error", resp.StatusCode)
-		return
+		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", dResp.Error.Message), "upstream_error", resp.StatusCode)
 	}
 
 	upstreamID := strings.TrimSpace(dResp.ID)
@@ -288,22 +284,35 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		upstreamID = strings.TrimSpace(dResp.TaskID)
 	}
 	if upstreamID == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 	}
 	if strings.TrimSpace(dResp.VideoID) == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("video_id is empty"), "invalid_response", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(fmt.Errorf("video_id is empty"), "invalid_response", http.StatusInternalServerError)
 	}
 
 	// Rewrite public id for clients; persist raw upstream body (keeps video_id).
 	dResp.ID = info.PublicTaskID
 	dResp.TaskID = info.PublicTaskID
-	c.JSON(http.StatusOK, dResp)
-	return upstreamID, responseBody, nil
+	return &channel.TaskSubmitResponse{
+		UpstreamTaskID: upstreamID,
+		TaskData:       responseBody,
+		ClientResponse: dResp,
+	}, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, task *model.Task, proxy string) (*http.Response, error) {
+	body := map[string]any{
+		"task_id": task.GetUpstreamTaskID(),
+		"action":  task.Action,
+	}
+	if videoID := task.GetUpstreamVideoID(); videoID != "" {
+		body["video_id"] = videoID
+	}
+	if modelName := task.Properties.UpstreamModelName; modelName != "" {
+		body["model"] = modelName
+	} else if modelName := task.Properties.OriginModelName; modelName != "" {
+		body["model"] = modelName
+	}
 	uri, err := buildFetchURL(baseUrl, body)
 	if err != nil {
 		return nil, err
@@ -324,7 +333,7 @@ func doAgnesFetch(client *http.Client, uri, key string) (*http.Response, error) 
 	return client.Do(req)
 }
 
-func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, respBody []byte) (*relaycommon.TaskInfo, error) {
 	var res pollResponse
 	if err := common.Unmarshal(respBody, &res); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")

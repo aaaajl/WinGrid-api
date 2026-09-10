@@ -60,7 +60,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	}
 
 	req.Model = info.UpstreamModelName
-	info.Action = constant.TaskActionGenerate
+	info.Action = constant.TaskActionImageToVideo
 	c.Set(contextKeyVideoRequest, req)
 	// per_duration / shared helpers read TaskSubmitReq from task_request.
 	c.Set("task_request", relaycommon.TaskSubmitReq{
@@ -214,19 +214,19 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (string, []byte, *taskdto.TaskError) {
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *taskdto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+		return nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 	}
 	_ = resp.Body.Close()
 
 	var createResponse CreateResponse
 	if err := common.Unmarshal(responseBody, &createResponse); err != nil {
-		return "", nil, service.TaskErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
+		return nil, service.TaskErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
 	}
 	if createResponse.TaskID == "" {
-		return "", nil, service.TaskErrorWrapperLocal(fmt.Errorf("upstream task_id is empty"), "invalid_response", http.StatusBadGateway)
+		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("upstream task_id is empty"), "invalid_response", http.StatusBadGateway)
 	}
 
 	video := dto.NewOpenAIVideo()
@@ -234,13 +234,16 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	video.TaskID = info.PublicTaskID
 	video.CreatedAt = time.Now().Unix()
 	video.Model = info.OriginModelName
-	c.JSON(http.StatusOK, video)
-	return createResponse.TaskID, responseBody, nil
+	return &channel.TaskSubmitResponse{
+		UpstreamTaskID: createResponse.TaskID,
+		TaskData:       responseBody,
+		ClientResponse: video,
+	}, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
-	taskID, ok := body["task_id"].(string)
-	if !ok || taskID == "" {
+func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
+	taskID := task.GetUpstreamTaskID()
+	if taskID == "" {
 		return nil, fmt.Errorf("invalid task_id")
 	}
 	requestURL := normalizeBaseURL(baseURL) + "/v2/query/video_generation/" + url.PathEscape(taskID)
@@ -257,7 +260,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 	return client.Do(req)
 }
 
-func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, respBody []byte) (*relaycommon.TaskInfo, error) {
 	var response QueryResponse
 	if err := common.Unmarshal(respBody, &response); err != nil {
 		return nil, fmt.Errorf("unmarshal task result failed: %w", err)

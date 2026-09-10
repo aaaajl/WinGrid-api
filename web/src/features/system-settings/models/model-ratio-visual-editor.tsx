@@ -47,6 +47,8 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import { useModelPricing } from '@/features/model-pricing/api'
+import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMediaQuery } from '@/hooks'
 
@@ -69,7 +71,10 @@ import {
   type ModelRow,
   type PeakOffPeakConfig,
 } from './model-pricing-snapshots'
-import { buildModelRatioColumns } from './model-ratio-table-columns'
+import {
+  buildModelRatioColumns,
+  TASK_PRICING_MODE_FILTER,
+} from './model-ratio-table-columns'
 
 type ModelRatioVisualEditorProps = {
   savedModelPrice: string
@@ -149,10 +154,15 @@ const ModelRatioVisualEditorComponent = forwardRef<
   ref
 ) {
   const { t } = useTranslation()
+  const { models: pricingModels } = usePricingData()
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editData, setEditData] = useState<ModelRatioData | null>(null)
+  const pricingConfig = useModelPricing(
+    editData?.name ? [editData.name] : [],
+    Boolean(editData?.name)
+  )
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -200,6 +210,20 @@ const ModelRatioVisualEditorComponent = forwardRef<
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility))
   }, [columnVisibility])
+
+  const taskModelNames = useMemo(
+    () =>
+      new Set(
+        pricingModels
+          .filter(
+            (model) =>
+              model.billing_usage_schema &&
+              Object.keys(model.billing_usage_schema).length > 0
+          )
+          .map((model) => model.model_name)
+      ),
+    [pricingModels]
+  )
 
   const models = useMemo(() => {
     const savedRows = buildModelSnapshots({
@@ -288,37 +312,34 @@ const ModelRatioVisualEditorComponent = forwardRef<
     peakOffPeakPricing,
   ])
 
-  const modeCounts = useMemo(
-    () =>
-      models.reduce(
-        (acc, model) => {
-          const mode =
-            model.billingMode === 'per-request' ||
-            model.billingMode === 'tiered_expr' ||
-            model.billingMode === 'per_duration' ||
-            model.billingMode === 'peak_offpeak'
-              ? model.billingMode
-              : 'per-token'
-          acc[mode] += 1
-          return acc
-        },
-        {
-          'per-token': 0,
-          'per-request': 0,
-          tiered_expr: 0,
-          per_duration: 0,
-          peak_offpeak: 0,
-        } as Record<
-          | 'per-token'
-          | 'per-request'
-          | 'tiered_expr'
-          | 'per_duration'
-          | 'peak_offpeak',
-          number
-        >
-      ),
-    [models]
-  )
+  const modeCounts = useMemo(() => {
+    const counts = {
+      'per-token': 0,
+      'per-request': 0,
+      tiered_expr: 0,
+      per_duration: 0,
+      peak_offpeak: 0,
+      [TASK_PRICING_MODE_FILTER]: 0,
+    }
+    for (const model of models) {
+      const mode =
+        model.billingMode === 'per-request' ||
+        model.billingMode === 'tiered_expr' ||
+        model.billingMode === 'per_duration' ||
+        model.billingMode === 'peak_offpeak'
+          ? model.billingMode
+          : 'per-token'
+      counts[mode] += 1
+      if (
+        taskModelNames.has(model.name) &&
+        model.billingMode === 'tiered_expr' &&
+        Boolean(model.billingExpr)
+      ) {
+        counts[TASK_PRICING_MODE_FILTER] += 1
+      }
+    }
+    return counts
+  }, [models, taskModelNames])
 
   const handleEdit = useCallback(
     (model: ModelRow) => {
@@ -497,9 +518,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         onDelete: handleDelete,
         onEdit: handleEdit,
         deleteDisabled: filterMode === 'unset',
+        taskModelNames,
         t,
       }),
-    [handleEdit, handleDelete, filterMode, t]
+    [handleEdit, handleDelete, filterMode, t, taskModelNames]
   )
 
   const ensurePageInRange = useCallback((pageCount: number) => {
@@ -697,9 +719,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
     [
       modelPrice,
       modelRatio,
+      completionRatio,
       cacheRatio,
       createCacheRatio,
-      completionRatio,
       imageRatio,
       audioRatio,
       audioCompletionRatio,
@@ -775,12 +797,17 @@ const ModelRatioVisualEditorComponent = forwardRef<
   }
 
   return (
-    <div className='flex flex-col gap-4'>
-      <div className='grid h-[clamp(720px,calc(100vh-12rem),900px)] min-h-0 gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'>
+    <div className='flex min-h-0 flex-1 flex-col gap-4'>
+      <div
+        role='region'
+        aria-label={t('Model prices')}
+        className='grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'
+      >
         <div className='flex min-h-0 min-w-0 flex-col gap-3'>
           <DataTableToolbar
             table={table}
             searchPlaceholder={t('Search models...')}
+            searchDebounceMs={250}
             filters={[
               {
                 columnId: 'billingMode',
@@ -810,6 +837,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Peak / Off-peak',
                     value: 'peak_offpeak',
                     count: modeCounts.peak_offpeak,
+                  },
+                  {
+                    label: 'Expression - Task pricing',
+                    value: TASK_PRICING_MODE_FILTER,
+                    count: modeCounts[TASK_PRICING_MODE_FILTER],
                   },
                 ],
               },
@@ -886,6 +918,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
             <ModelPricingEditorPanel
               ref={editorPanelRef}
               editData={editData}
+              usageSchema={
+                pricingConfig.data?.entries.find(
+                  (entry) => entry.model_name === editData?.name
+                )?.usage_schema
+              }
               onSave={onSave}
               isSaving={isSaving}
               className='h-full min-h-0'
@@ -926,6 +963,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editData={editData}
+          usageSchema={
+            pricingConfig.data?.entries.find(
+              (entry) => entry.model_name === editData?.name
+            )?.usage_schema
+          }
           onSave={onSave}
           isSaving={isSaving}
         />

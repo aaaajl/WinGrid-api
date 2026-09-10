@@ -45,7 +45,7 @@ func TestParseTaskResult_CompletedSetsCDNURL(t *testing.T) {
 		"metadata":{"url":"https://platform-outputs.agnes-ai.space/videos/a.mp4","size_mapping":{"ratio":"16:9"}}
 	}`)
 	a := &TaskAdaptor{}
-	info, err := a.ParseTaskResult(body)
+	info, err := a.ParseTaskResult(nil, nil, body)
 	require.NoError(t, err)
 	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
 	assert.Equal(t, "100%", info.Progress)
@@ -59,7 +59,7 @@ func TestParseTaskResult_CompletedPrefersTopLevelURL(t *testing.T) {
 		"metadata":{"url":"https://platform-outputs.agnes-ai.space/videos/ignored.mp4"}
 	}`)
 	a := &TaskAdaptor{}
-	info, err := a.ParseTaskResult(body)
+	info, err := a.ParseTaskResult(nil, nil, body)
 	require.NoError(t, err)
 	assert.Equal(t, string(model.TaskStatusSuccess), info.Status)
 	assert.Equal(t, "https://cos-platform-outputs.agnes-ai.cn/videos/a.mp4", info.Url)
@@ -68,11 +68,11 @@ func TestParseTaskResult_CompletedPrefersTopLevelURL(t *testing.T) {
 func TestParseTaskResult_QueuedAndFailed(t *testing.T) {
 	a := &TaskAdaptor{}
 
-	info, err := a.ParseTaskResult([]byte(`{"status":"queued","progress":0}`))
+	info, err := a.ParseTaskResult(nil, nil, []byte(`{"status":"queued","progress":0}`))
 	require.NoError(t, err)
 	assert.Equal(t, string(model.TaskStatusQueued), info.Status)
 
-	info, err = a.ParseTaskResult([]byte(`{"status":"failed","error":{"message":"boom","code":"x"}}`))
+	info, err = a.ParseTaskResult(nil, nil, []byte(`{"status":"failed","error":{"message":"boom","code":"x"}}`))
 	require.NoError(t, err)
 	assert.Equal(t, string(model.TaskStatusFailure), info.Status)
 	assert.Equal(t, "boom", info.Reason)
@@ -81,7 +81,7 @@ func TestParseTaskResult_QueuedAndFailed(t *testing.T) {
 
 func TestParseTaskResult_CompletedSetsProgress(t *testing.T) {
 	a := &TaskAdaptor{}
-	info, err := a.ParseTaskResult([]byte(`{
+	info, err := a.ParseTaskResult(nil, nil, []byte(`{
 		"status":"completed","progress":100,
 		"metadata":{"url":"https://cdn.example.com/a.mp4"}
 	}`))
@@ -93,7 +93,7 @@ func TestParseTaskResult_CompletedSetsProgress(t *testing.T) {
 
 func TestParseTaskResult_UnrecognizedStatusWithoutErrorStaysEmpty(t *testing.T) {
 	a := &TaskAdaptor{}
-	info, err := a.ParseTaskResult([]byte(`{"progress":0}`))
+	info, err := a.ParseTaskResult(nil, nil, []byte(`{"progress":0}`))
 	require.NoError(t, err)
 	assert.Equal(t, "", info.Status)
 }
@@ -117,10 +117,10 @@ func TestFetchTask_UsesVideoIDOnly(t *testing.T) {
 	}))
 	defer server.Close()
 
-	resp, err := (&TaskAdaptor{}).FetchTask(server.URL, "secret", map[string]any{
-		"video_id": "video_abc",
-		"task_id":  "task_legacy",
-		"model":    "agnes-video-v2.0",
+	resp, err := (&TaskAdaptor{}).FetchTask(server.URL, "secret", &model.Task{
+		TaskID:      "task_legacy",
+		PrivateData: model.TaskPrivateData{UpstreamVideoID: "video_abc"},
+		Properties:  model.Properties{UpstreamModelName: "agnes-video-v2.0"},
 	}, "")
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -130,8 +130,8 @@ func TestFetchTask_UsesVideoIDOnly(t *testing.T) {
 }
 
 func TestFetchTask_RequiresVideoID(t *testing.T) {
-	_, err := (&TaskAdaptor{}).FetchTask("https://api.agnes-ai.cn", "secret", map[string]any{
-		"task_id": "task_legacy",
+	_, err := (&TaskAdaptor{}).FetchTask("https://api.agnes-ai.cn", "secret", &model.Task{
+		TaskID: "task_legacy",
 	}, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "video_id")

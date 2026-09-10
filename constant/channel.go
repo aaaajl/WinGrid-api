@@ -58,9 +58,10 @@ const (
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSub2API        = 59
 	ChannelTypeNewAPI         = 60
+	ChannelTypeTaskPlugin = 61
 	// ChannelTypeDummy is the last contiguous channel type ID (inclusive).
 	// High-ID fork types below are registered explicitly and must not use sequential IDs.
-	ChannelTypeDummy = 60
+	ChannelTypeDummy = 61
 
 	// High IDs for fork/custom channels so they do not collide with upstream allocations.
 	ChannelTypeHappyHorse = 961
@@ -130,6 +131,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //58
 	"",                                          //59
 	"",                                          //60
+	"",                                          //61
 }
 
 // channelBaseURLExtras holds default base URLs for non-contiguous channel type IDs.
@@ -205,6 +207,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeAdvancedCustom: "Advanced Custom",
 	ChannelTypeSub2API:        "Sub2API",
 	ChannelTypeNewAPI:         "New API",
+	ChannelTypeTaskPlugin:     "Task Plugin",
 	ChannelTypeHappyHorse:     "HappyHorse",
 	ChannelTypeAgnesVideo:     "Agnes Video",
 	ChannelTypeWan30Video:     "Wan Video",

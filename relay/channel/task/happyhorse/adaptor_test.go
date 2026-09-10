@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -237,7 +236,7 @@ func TestParseTaskResult_Pending(t *testing.T) {
 		"request_id": "req-001"
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusQueued, result.Status)
 	assert.Empty(t, result.Url)
@@ -250,7 +249,7 @@ func TestParseTaskResult_Running(t *testing.T) {
 		"request_id": "req-002"
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusInProgress, result.Status)
 }
@@ -262,7 +261,7 @@ func TestParseTaskResult_Succeeded(t *testing.T) {
 		"request_id": "req-003"
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusSuccess, result.Status)
 	assert.Equal(t, "https://example.com/out.mp4", result.Url)
@@ -275,7 +274,7 @@ func TestParseTaskResult_Failed(t *testing.T) {
 		"request_id": "req-004"
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusFailure, result.Status)
 	assert.Contains(t, result.Reason, "GPU OOM")
@@ -290,7 +289,7 @@ func TestParseTaskResult_FailedWithTopLevelMessage(t *testing.T) {
 		"message": "Bad request"
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusFailure, result.Status)
 	assert.Equal(t, "Bad request", result.Reason)
@@ -303,14 +302,14 @@ func TestParseTaskResult_UnknownStatus(t *testing.T) {
 		"request_id": "req-006"
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusQueued, result.Status) // defaults to queued
 }
 
 func TestParseTaskResult_InvalidJSON(t *testing.T) {
 	a := &TaskAdaptor{}
-	_, err := a.ParseTaskResult([]byte(`not json`))
+	_, err := a.ParseTaskResult(nil, nil, []byte(`not json`))
 	assert.Error(t, err)
 }
 
@@ -399,10 +398,10 @@ func TestDoResponse_Success(t *testing.T) {
 	c, _ := createGinContext(w)
 	c.Set("model", "happyhorse-1.0-t2v")
 
-	taskID, taskData, taskErr := a.DoResponse(c, resp, info)
+	parsed, taskErr := a.ParseResponse(c, resp, info)
 	assert.Nil(t, taskErr)
-	assert.Equal(t, "upstream-task-123", taskID)
-	assert.NotEmpty(t, taskData)
+	assert.Equal(t, "upstream-task-123", parsed.UpstreamTaskID)
+	assert.NotEmpty(t, parsed.TaskData)
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
@@ -429,7 +428,7 @@ func TestDoResponse_ErrorCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := createGinContext(w)
 
-	_, _, taskErr := a.DoResponse(c, resp, info)
+	_, taskErr := a.ParseResponse(c, resp, info)
 	assert.NotNil(t, taskErr)
 }
 
@@ -455,7 +454,7 @@ func TestDoResponse_EmptyTaskID(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := createGinContext(w)
 
-	_, _, taskErr := a.DoResponse(c, resp, info)
+	_, taskErr := a.ParseResponse(c, resp, info)
 	assert.NotNil(t, taskErr)
 }
 
@@ -463,17 +462,9 @@ func TestDoResponse_EmptyTaskID(t *testing.T) {
 // FetchTask tests
 // ============================
 
-func TestFetchTask_InvalidTaskIDType(t *testing.T) {
-	a := &TaskAdaptor{}
-	// task_id is not a string
-	_, err := a.FetchTask("https://example.com", "key", map[string]any{"task_id": 123}, "")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid task_id")
-}
-
 func TestFetchTask_MissingTaskID(t *testing.T) {
 	a := &TaskAdaptor{}
-	_, err := a.FetchTask("https://example.com", "key", map[string]any{}, "")
+	_, err := a.FetchTask("https://example.com", "key", &model.Task{}, "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid task_id")
 }
@@ -698,7 +689,7 @@ func TestParseTaskResult_WithUsage(t *testing.T) {
 		"usage": {"duration": 5, "video_count": 1}
 	}`)
 
-	result, err := a.ParseTaskResult(respBody)
+	result, err := a.ParseTaskResult(nil, nil, respBody)
 	require.NoError(t, err)
 	assert.Equal(t, model.TaskStatusSuccess, result.Status)
 	assert.Equal(t, 5, result.TotalTokens)

@@ -368,18 +368,16 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 }
 
 // DoResponse handles upstream response
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *taskdto.TaskError) {
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *taskdto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 	}
 	_ = resp.Body.Close()
 
 	var hhResp HappyHorseResponse
 	if err := common.Unmarshal(responseBody, &hhResp); err != nil {
-		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 	}
 
 	if hhResp.Code != "" {
@@ -387,16 +385,14 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		if errStatusCode == http.StatusOK {
 			errStatusCode = http.StatusBadRequest
 		}
-		taskErr = service.TaskErrorWrapper(
+		return nil, service.TaskErrorWrapper(
 			fmt.Errorf("%s: %s", hhResp.Code, hhResp.Message),
 			"happyhorse_api_error", errStatusCode,
 		)
-		return
 	}
 
 	if hhResp.Output.TaskID == "" {
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 	}
 
 	openAIResp := dto.NewOpenAIVideo()
@@ -406,15 +402,17 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	openAIResp.Status = convertHappyHorseStatus(hhResp.Output.TaskStatus)
 	openAIResp.CreatedAt = common.GetTimestamp()
 
-	c.JSON(http.StatusOK, openAIResp)
-
-	return hhResp.Output.TaskID, responseBody, nil
+	return &channel.TaskSubmitResponse{
+		UpstreamTaskID: hhResp.Output.TaskID,
+		TaskData:       responseBody,
+		ClientResponse: openAIResp,
+	}, nil
 }
 
 // FetchTask 查询任务状态
-func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
-	taskID, ok := body["task_id"].(string)
-	if !ok {
+func (a *TaskAdaptor) FetchTask(baseUrl, key string, task *model.Task, proxy string) (*http.Response, error) {
+	taskID := task.GetUpstreamTaskID()
+	if taskID == "" {
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
@@ -442,7 +440,7 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 // ParseTaskResult 解析任务结果
-func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, respBody []byte) (*relaycommon.TaskInfo, error) {
 	var hhResp HappyHorseResponse
 	if err := common.Unmarshal(respBody, &hhResp); err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")

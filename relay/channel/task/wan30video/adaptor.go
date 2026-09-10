@@ -139,9 +139,9 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 		return localTaskError("invalid_wan30_request", err.Error())
 	}
 
-	info.Action = constant.TaskActionTextGenerate
+	info.Action = constant.TaskActionTextToVideo
 	if len(converted.Input.Media) > 0 {
-		info.Action = constant.TaskActionGenerate
+		info.Action = constant.TaskActionImageToVideo
 	}
 	c.Set("task_request", normalized)
 	return nil
@@ -397,30 +397,26 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, req
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
-func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (taskID string, taskData []byte, taskErr *taskdto.TaskError) {
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *taskdto.TaskError) {
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		taskErr = service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
 	}
 	_ = resp.Body.Close()
 
 	var wanResp Wan30Response
 	if err := common.Unmarshal(responseBody, &wanResp); err != nil {
-		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 	}
 	if wanResp.Code != "" {
 		status := resp.StatusCode
 		if status < http.StatusBadRequest {
 			status = http.StatusBadRequest
 		}
-		taskErr = service.TaskErrorWrapper(fmt.Errorf("%s: %s", wanResp.Code, wanResp.Message), "wan30_api_error", status)
-		return
+		return nil, service.TaskErrorWrapper(fmt.Errorf("%s: %s", wanResp.Code, wanResp.Message), "wan30_api_error", status)
 	}
 	if wanResp.Output.TaskID == "" {
-		taskErr = service.TaskErrorWrapper(errors.New("task_id is empty"), "invalid_response", http.StatusInternalServerError)
-		return
+		return nil, service.TaskErrorWrapper(errors.New("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 	}
 
 	openAIResp := dto.NewOpenAIVideo()
@@ -429,13 +425,16 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	openAIResp.Model = info.OriginModelName
 	openAIResp.Status = convertWan30Status(wanResp.Output.TaskStatus)
 	openAIResp.CreatedAt = common.GetTimestamp()
-	c.JSON(http.StatusOK, openAIResp)
-	return wanResp.Output.TaskID, responseBody, nil
+	return &channel.TaskSubmitResponse{
+		UpstreamTaskID: wanResp.Output.TaskID,
+		TaskData:       responseBody,
+		ClientResponse: openAIResp,
+	}, nil
 }
 
-func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
-	taskID, ok := body["task_id"].(string)
-	if !ok || strings.TrimSpace(taskID) == "" {
+func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
+	taskID := strings.TrimSpace(task.GetUpstreamTaskID())
+	if taskID == "" {
 		return nil, fmt.Errorf("invalid task_id")
 	}
 	uri := strings.TrimRight(baseURL, "/") + "/api/v1/tasks/" + url.PathEscape(taskID)
@@ -451,7 +450,7 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy 
 	return client.Do(req)
 }
 
-func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
+func (a *TaskAdaptor) ParseTaskResult(_ *model.Task, _ *http.Response, respBody []byte) (*relaycommon.TaskInfo, error) {
 	var wanResp Wan30Response
 	if err := common.Unmarshal(respBody, &wanResp); err != nil {
 		return nil, errors.Wrap(err, "unmarshal wan30 task result failed")
