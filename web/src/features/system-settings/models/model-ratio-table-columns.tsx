@@ -28,6 +28,7 @@ import {
   getModeVariant,
   getPriceDetail,
   getPriceSummary,
+  hasConfiguredTaskPricing,
   type ModelRow,
 } from './model-pricing-snapshots'
 
@@ -87,13 +88,11 @@ export function buildModelRatioColumns({
       ),
       cell: ({ row }) => {
         const isTaskModel = Boolean(taskModelNames?.has(row.original.name))
-        const hasConfiguredTaskPricing =
-          row.original.billingMode === 'tiered_expr' &&
-          Boolean(row.original.billingExpr)
-        const showTaskPricingBadge = isTaskModel && hasConfiguredTaskPricing
+        const hasTaskPricing = hasConfiguredTaskPricing(row.original)
+        const showTaskPricingBadge = isTaskModel && hasTaskPricing
         const showTieredBadge =
           row.original.billingMode === 'tiered_expr' && !isTaskModel
-        const showUnconfiguredTaskBadge = isTaskModel && !hasConfiguredTaskPricing
+        const showUnconfiguredTaskBadge = isTaskModel && !hasTaskPricing
 
         return (
           <div className='flex min-w-0 items-center gap-2 font-medium'>
@@ -151,7 +150,10 @@ export function buildModelRatioColumns({
       ),
       filterFn: (row, id, value) => {
         if (filterBySelectedValues(row.getValue(id), value)) return true
-        if (!Array.isArray(value) || !value.includes(TASK_PRICING_MODE_FILTER)) {
+        if (
+          !Array.isArray(value) ||
+          !value.includes(TASK_PRICING_MODE_FILTER)
+        ) {
           return false
         }
         return (

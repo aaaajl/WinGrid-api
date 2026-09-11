@@ -226,9 +226,12 @@ type CompletionsStreamResponse struct {
 }
 
 type Usage struct {
-	PromptTokens         int           `json:"prompt_tokens"`
-	CompletionTokens     int           `json:"completion_tokens"`
-	TotalTokens          int           `json:"total_tokens"`
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	// Characters is the upstream-reported character count for per-character
+	// billing (for example DashScope Qwen-TTS). Zero when not reported.
+	Characters           int           `json:"characters,omitempty"`
 	PromptCacheHitTokens int           `json:"prompt_cache_hit_tokens,omitempty"`
 	UsageSemantic        string        `json:"usage_semantic,omitempty"`
 	UsageSource          string        `json:"usage_source,omitempty"`

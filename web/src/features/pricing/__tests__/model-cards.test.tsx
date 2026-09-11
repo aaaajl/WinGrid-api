@@ -289,6 +289,25 @@ describe('model cards', () => {
     expect(screen.queryByText('Per-request')).not.toBeInTheDocument()
   })
 
+  it('shows a per-character price and badge without a token unit', () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          quota_type: 1,
+          billing_mode: 'per_chars',
+          per_chars_pricing: { price_per_10k_chars: 0.1 },
+        })}
+        onClick={vi.fn()}
+        tokenUnit='K'
+      />
+    )
+    expect(screen.getByText('$0.1').parentElement).toHaveTextContent(
+      /\$0.1\s*\/\s*10K chars/
+    )
+    expect(screen.queryByText(/1K|1M/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('Per 10K Characters')).toHaveLength(1)
+  })
+
   it('preserves expression prices and makes the selected token unit explicit', () => {
     render(
       <ModelCard

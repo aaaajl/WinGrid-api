@@ -23,6 +23,7 @@ import type { PricingModel, TokenUnit, PriceType } from '../types'
 import {
   getConfiguredGroupRatio,
   getDisplayGroupRatio,
+  isPerCharsModel,
   isPerDurationModel,
 } from './model-helpers'
 
@@ -389,6 +390,44 @@ export function formatDurationSummaryPrice(
   const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
   return formatDurationUnitPrice(
     starting,
+    displayGroupRatio,
+    showWithRecharge,
+    priceRate,
+    usdExchangeRate
+  )
+}
+
+/**
+ * Configured USD price per 10,000 characters for per_chars models.
+ */
+export function getPerCharsPriceUSD(model: PricingModel): number | null {
+  if (!isPerCharsModel(model)) {
+    return null
+  }
+  const price = Number(model.per_chars_pricing?.price_per_10k_chars)
+  if (!Number.isFinite(price) || price <= 0) {
+    return null
+  }
+  return price
+}
+
+/**
+ * Card/table summary for per_chars models: USD per 10K characters.
+ */
+export function formatPerCharsSummaryPrice(
+  model: PricingModel,
+  showWithRecharge = false,
+  priceRate = 1,
+  usdExchangeRate = 1,
+  selectedGroup?: string
+): string {
+  const price = getPerCharsPriceUSD(model)
+  if (price == null) {
+    return '-'
+  }
+  const displayGroupRatio = getDisplayGroupRatio(model, selectedGroup)
+  return formatDurationUnitPrice(
+    price,
     displayGroupRatio,
     showWithRecharge,
     priceRate,

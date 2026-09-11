@@ -118,6 +118,13 @@ export function isPerDurationModel(model: PricingModel): boolean {
 }
 
 /**
+ * Check if model uses per-character (per 10K characters) pricing.
+ */
+export function isPerCharsModel(model: PricingModel): boolean {
+  return model.billing_mode === 'per_chars' && model.per_chars_pricing != null
+}
+
+/**
  * Check if model uses peak/off-peak token pricing.
  */
 export function isPeakOffPeakModel(model: PricingModel): boolean {

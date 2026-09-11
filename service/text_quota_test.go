@@ -204,6 +204,85 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 	}
 }
 
+func TestPostAudioConsumeQuotaPerCharsLogContent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+	oldDB, oldLogDB := model.DB, model.LOG_DB
+	oldMainType, oldLogType := common.MainDatabaseType(), common.LogDatabaseType()
+	model.DB, model.LOG_DB = db, db
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
+	t.Cleanup(func() {
+		model.DB, model.LOG_DB = oldDB, oldLogDB
+		common.SetDatabaseTypes(oldMainType, oldLogType)
+	})
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}))
+
+	user := model.User{Username: "per_chars_content", Quota: 2_000_000, Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&user).Error)
+	token := model.Token{UserId: user.Id, Key: "per-chars-content", Name: "per-chars", RemainQuota: 2_000_000, Status: common.TokenStatusEnabled}
+	require.NoError(t, db.Create(&token).Error)
+	channel := model.Channel{Name: "per-chars", Key: "unused", Status: common.ChannelStatusEnabled}
+	require.NoError(t, db.Create(&channel).Error)
+	t.Cleanup(func() {
+		require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
+		require.NoError(t, db.Unscoped().Delete(&token).Error)
+		require.NoError(t, db.Unscoped().Delete(&user).Error)
+		require.NoError(t, db.Unscoped().Delete(&channel).Error)
+	})
+
+	const inputChars = 17
+	info := &relaycommon.RelayInfo{
+		UserId:          user.Id,
+		TokenId:         token.Id,
+		TokenKey:        token.Key,
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: channel.Id},
+		OriginModelName: "qwen-audio-3.0-tts-flash",
+		UsingGroup:      "default",
+		UserGroup:       "default",
+		UserSetting:     dto.UserSetting{BillingPreference: "wallet_only"},
+		ForcePreConsume: true,
+		StartTime:       time.Now(),
+		RelayFormat:     types.RelayFormatOpenAIAudio,
+		PriceData: hosttypes.PriceData{
+			// The pre-charge derived a tiny per-request USD cost; the log must not
+			// surface it as "模型价格 0.00".
+			UsePrice:       true,
+			ModelPrice:     0.0001617,
+			GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		PerCharsBilling: &relaycommon.PerCharsBillingInfo{
+			PricePer10KChars: 0.147,
+			EstimatedChars:   inputChars,
+			GroupRatio:       1,
+			QuotaPerUnit:     common.QuotaPerUnit,
+		},
+	}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/audio/speech", nil)
+	require.Nil(t, PreConsumeBilling(ctx, 100, info))
+
+	// Upstream reports the billable character count via usage.characters.
+	PostAudioConsumeQuota(ctx, info, &dto.Usage{Characters: inputChars}, "")
+
+	var log model.Log
+	require.NoError(t, db.Where("user_id = ?", user.Id).Take(&log).Error)
+	assert.Contains(t, log.Content, "按字符计费")
+	assert.Contains(t, log.Content, "输入字符数 17")
+	assert.NotContains(t, log.Content, "模型价格 0.00")
+
+	var other map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	assert.Equal(t, "per_chars", other["billing_mode"])
+	assert.Equal(t, float64(inputChars), other["characters"])
+	assert.Equal(t, 0.147, other["price_per_10k_chars"])
+}
+
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

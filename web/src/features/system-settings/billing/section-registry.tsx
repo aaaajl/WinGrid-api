@@ -40,6 +40,7 @@ const getModelDefaults = (settings: BillingSettings) => ({
   BillingExpr: settings['billing_setting.billing_expr'],
   DurationPricing: settings['billing_setting.duration_pricing'],
   PeakOffPeakPricing: settings['billing_setting.peak_offpeak_pricing'],
+  PerCharsPricing: settings['billing_setting.per_chars_pricing'],
 })
 
 const getGroupDefaults = (settings: BillingSettings) => ({

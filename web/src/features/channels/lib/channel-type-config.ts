@@ -199,6 +199,18 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Supported regions: Beijing, Singapore, Tokyo, Frankfurt, and Virginia',
     },
   },
+  964: {
+    id: 964,
+    name: CHANNEL_TYPES[964],
+    icon: 'tongyi',
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com',
+    hints: {
+      key: 'DashScope API Key',
+      models: 'qwen-audio-3.0-tts-flash, qwen-audio-3.0-tts-plus',
+      baseUrl: 'Default: https://dashscope.aliyuncs.com',
+      other: 'Only supports /v1/audio/speech (text-to-speech)',
+    },
+  },
 }
 
 /**

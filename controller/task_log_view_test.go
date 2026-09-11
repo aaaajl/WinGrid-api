@@ -85,24 +85,42 @@ func TestTaskLogDTODoesNotInventHistoricalPluginProvenance(t *testing.T) {
 	assert.Nil(t, adminView.RootInfo)
 }
 
-func TestTaskLogDTOReplacesLegacyVideoURLWithAvailabilityFlag(t *testing.T) {
+func TestTaskLogDTOExposesDirectLegacyVideoURLForBrowserPlayback(t *testing.T) {
+	directURL := "https://cdn.example.com/video.mp4?signature=secret"
 	task := &model.Task{
 		TaskID:     "task_legacy_video",
 		Platform:   "jimeng",
 		Action:     constant.TaskActionTextToVideo,
 		Status:     model.TaskStatusSuccess,
-		FailReason: "https://private-upstream.invalid/video.mp4?signature=secret",
+		FailReason: directURL,
 	}
 
 	view := tasksToDto([]*model.Task{task}, false, common.RoleCommonUser)[0]
 	assert.True(t, view.LegacyVideoAvailable)
-	assert.Empty(t, view.ResultURL)
+	assert.Equal(t, directURL, view.ResultURL)
 	assert.Empty(t, view.FailReason)
 	encoded, err := common.Marshal(view)
 	require.NoError(t, err)
-	assert.NotContains(t, string(encoded), "private-upstream.invalid")
-	assert.NotContains(t, string(encoded), "result_url")
+	assert.Contains(t, string(encoded), "result_url")
 	assert.Contains(t, string(encoded), "legacy_video_available")
+
+	// A result URL that points back at our own proxy cannot be played directly,
+	// so it stays hidden and the capability proxy remains the fallback.
+	proxied := &model.Task{
+		TaskID:   "task_legacy_proxied",
+		Platform: "jimeng",
+		Action:   constant.TaskActionTextToVideo,
+		Status:   model.TaskStatusSuccess,
+		PrivateData: model.TaskPrivateData{
+			ResultURL: "https://gateway.example.com/v1/videos/task_legacy_proxied/content",
+		},
+	}
+	proxiedView := tasksToDto([]*model.Task{proxied}, false, common.RoleCommonUser)[0]
+	assert.True(t, proxiedView.LegacyVideoAvailable)
+	assert.Empty(t, proxiedView.ResultURL)
+	proxiedJSON, err := common.Marshal(proxiedView)
+	require.NoError(t, err)
+	assert.NotContains(t, string(proxiedJSON), "result_url")
 }
 
 func TestTaskLogDTOKeepsFailureReasonAndDoesNotMarkPluginTaskLegacy(t *testing.T) {

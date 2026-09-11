@@ -41,7 +41,13 @@ type Pricing struct {
 	BillingUsageExamples   []jsplugin.UsageExample              `json:"billing_usage_examples,omitempty"`
 	DurationPricing        *DurationPricingPublic               `json:"duration_pricing,omitempty"`
 	PeakOffPeakPricing     *PeakOffPeakPricingPublic            `json:"peak_offpeak_pricing,omitempty"`
+	PerCharsPricing        *PerCharsPricingPublic               `json:"per_chars_pricing,omitempty"`
 	PricingVersion         string                               `json:"pricing_version,omitempty"`
+}
+
+// PerCharsPricingPublic exposes per-character pricing on the pricing API.
+type PerCharsPricingPublic struct {
+	PricePer10KChars float64 `json:"price_per_10k_chars"`
 }
 
 // DurationPricingPublic exposes per_duration size→$/s tables on the pricing API.
@@ -52,11 +58,11 @@ type DurationPricingPublic struct {
 
 // PeakOffPeakPricingPublic exposes peak/off-peak cards on the pricing API.
 type PeakOffPeakPricingPublic struct {
-	Timezone      string                       `json:"timezone"`
-	WeekdaysOnly  bool                         `json:"weekdays_only"`
-	PeakWindows   []string                     `json:"peak_windows"`
-	Peak          PeakOffPeakTokenPricesPublic `json:"peak"`
-	OffPeak       PeakOffPeakTokenPricesPublic `json:"off_peak"`
+	Timezone     string                       `json:"timezone"`
+	WeekdaysOnly bool                         `json:"weekdays_only"`
+	PeakWindows  []string                     `json:"peak_windows"`
+	Peak         PeakOffPeakTokenPricesPublic `json:"peak"`
+	OffPeak      PeakOffPeakTokenPricesPublic `json:"off_peak"`
 }
 
 // PeakOffPeakTokenPricesPublic is USD/$1M prices for one period.
@@ -64,6 +70,69 @@ type PeakOffPeakTokenPricesPublic struct {
 	CacheHit   float64 `json:"cache_hit"`
 	CacheMiss  float64 `json:"cache_miss"`
 	Completion float64 `json:"completion"`
+}
+
+// billingModePricing is the public, validated pricing a model's configured
+// mode-specific billing exposes. An empty mode means nothing is configured.
+type billingModePricing struct {
+	mode     string
+	duration *DurationPricingPublic
+	peak     *PeakOffPeakPricingPublic
+	perChars *PerCharsPricingPublic
+}
+
+// configuredBillingModePricing resolves the explicitly configured
+// per_duration / peak_offpeak / per_chars pricing for a model. Each config is
+// validated so partially written rows never reach the pricing displays.
+func configuredBillingModePricing(model string) billingModePricing {
+	switch billing_setting.GetBillingMode(model) {
+	case billing_setting.BillingModePerDuration:
+		cfg, ok := billing_setting.GetDurationPricing(model)
+		if !ok || billing_setting.ValidateDurationPricing(cfg) != nil {
+			return billingModePricing{}
+		}
+		result := billingModePricing{
+			mode:     billing_setting.BillingModePerDuration,
+			duration: &DurationPricingPublic{FallbackPrice: cfg.FallbackPrice},
+		}
+		if len(cfg.SizePrices) > 0 {
+			result.duration.SizePrices = maps.Clone(cfg.SizePrices)
+		}
+		return result
+	case billing_setting.BillingModePeakOffPeak:
+		cfg, ok := billing_setting.GetPeakOffPeakPricing(model)
+		if !ok || billing_setting.ValidatePeakOffPeakConfig(cfg) != nil {
+			return billingModePricing{}
+		}
+		windows := make([]string, 0, len(cfg.PeakWindows))
+		for _, window := range cfg.PeakWindows {
+			windows = append(windows, fmt.Sprintf("%s-%s", window.Start, window.End))
+		}
+		return billingModePricing{
+			mode: billing_setting.BillingModePeakOffPeak,
+			peak: &PeakOffPeakPricingPublic{
+				Timezone:     cfg.Timezone,
+				WeekdaysOnly: cfg.WeekdaysOnly,
+				PeakWindows:  windows,
+				Peak: PeakOffPeakTokenPricesPublic{
+					CacheHit: cfg.Peak.CacheHit, CacheMiss: cfg.Peak.CacheMiss, Completion: cfg.Peak.Completion,
+				},
+				OffPeak: PeakOffPeakTokenPricesPublic{
+					CacheHit: cfg.OffPeak.CacheHit, CacheMiss: cfg.OffPeak.CacheMiss, Completion: cfg.OffPeak.Completion,
+				},
+			},
+		}
+	case billing_setting.BillingModePerChars:
+		cfg, ok := billing_setting.GetPerCharsPricing(model)
+		if !ok || billing_setting.ValidatePerCharsPricing(cfg) != nil {
+			return billingModePricing{}
+		}
+		return billingModePricing{
+			mode:     billing_setting.BillingModePerChars,
+			perChars: &PerCharsPricingPublic{PricePer10KChars: cfg.PricePer10KChars},
+		}
+	}
+	return billingModePricing{}
 }
 
 type PricingVendor struct {
@@ -391,39 +460,13 @@ func updatePricing() {
 				pricing.BillingMode = billingMode
 				pricing.BillingExpr = expr
 			}
-		} else if billingMode == billing_setting.BillingModePerDuration {
-			if cfg, ok := billing_setting.GetDurationPricing(model); ok && billing_setting.ValidateDurationPricing(cfg) == nil {
-				pricing.BillingMode = billingMode
+		} else if modePricing := configuredBillingModePricing(model); modePricing.mode != "" {
+			pricing.BillingMode = modePricing.mode
+			pricing.DurationPricing = modePricing.duration
+			pricing.PeakOffPeakPricing = modePricing.peak
+			pricing.PerCharsPricing = modePricing.perChars
+			if modePricing.duration != nil || modePricing.perChars != nil {
 				pricing.QuotaType = 1
-				copied := &DurationPricingPublic{
-					FallbackPrice: cfg.FallbackPrice,
-				}
-				if len(cfg.SizePrices) > 0 {
-					copied.SizePrices = make(map[string]float64, len(cfg.SizePrices))
-					for k, v := range cfg.SizePrices {
-						copied.SizePrices[k] = v
-					}
-				}
-				pricing.DurationPricing = copied
-			}
-		} else if billingMode == billing_setting.BillingModePeakOffPeak {
-			if cfg, ok := billing_setting.GetPeakOffPeakPricing(model); ok && billing_setting.ValidatePeakOffPeakConfig(cfg) == nil {
-				pricing.BillingMode = billingMode
-				windows := make([]string, 0, len(cfg.PeakWindows))
-				for _, w := range cfg.PeakWindows {
-					windows = append(windows, fmt.Sprintf("%s-%s", w.Start, w.End))
-				}
-				pricing.PeakOffPeakPricing = &PeakOffPeakPricingPublic{
-					Timezone:     cfg.Timezone,
-					WeekdaysOnly: cfg.WeekdaysOnly,
-					PeakWindows:  windows,
-					Peak: PeakOffPeakTokenPricesPublic{
-						CacheHit: cfg.Peak.CacheHit, CacheMiss: cfg.Peak.CacheMiss, Completion: cfg.Peak.Completion,
-					},
-					OffPeak: PeakOffPeakTokenPricesPublic{
-						CacheHit: cfg.OffPeak.CacheHit, CacheMiss: cfg.OffPeak.CacheMiss, Completion: cfg.OffPeak.Completion,
-					},
-				}
 			}
 		} else if target, resolved := ResolveTaskModelAlias(pluginGeneration, model); resolved && target.Declared != "" {
 			if tailMode := billing_setting.GetBillingMode(target.Declared); tailMode == "tiered_expr" {

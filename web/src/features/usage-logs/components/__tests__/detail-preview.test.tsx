@@ -213,6 +213,25 @@ test.each([true, false])(
   }
 )
 
+test('per-character billing shows its character detail section', async () => {
+  const preview = renderPreview({
+    billing_mode: 'per_chars',
+    characters: 34,
+    estimated_characters: 17,
+    price_per_10k_chars: 0.147,
+    cost_usd: 0.0005,
+    group_ratio: 1,
+  })
+  fireEvent.click(preview)
+  const dialog = within(await screen.findByRole('dialog'))
+  expect(dialog.getByText('Per-character')).toBeVisible()
+  expect(dialog.getByText('Character Billing')).toBeVisible()
+  expect(dialog.getByText('Billed Characters')).toBeVisible()
+  expect(dialog.getByText('34')).toBeVisible()
+  expect(dialog.getByText('Estimated Characters')).toBeVisible()
+  expect(dialog.getByText('17')).toBeVisible()
+})
+
 test.each([
   {
     expression: 'tier("music", u("clips") * 0.25)',

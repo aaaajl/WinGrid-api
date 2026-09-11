@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -230,6 +231,23 @@ func legacyVideoAvailable(task *model.Task) bool {
 	}
 }
 
+// directTaskResultURL returns the upstream result URL only when a browser can
+// fetch it directly. Proxy-loop, relative, credential-bearing, and non-HTTP
+// results are rejected so callers fall back to the capability proxy.
+func directTaskResultURL(task *model.Task) string {
+	raw := strings.TrimSpace(task.GetResultURL())
+	if raw == "" || isTaskMediaFallbackLoop(raw, task.TaskID) {
+		return ""
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed == nil ||
+		(parsed.Scheme != "http" && parsed.Scheme != "https") ||
+		parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		return ""
+	}
+	return raw
+}
+
 func getTaskForArtifactRequest(c *gin.Context, taskID string) (*model.Task, bool, error) {
 	if middleware.IsTaskArtifactAccess(c) {
 		task, exists, err := model.GetUniqueByOnlyTaskId(taskID)
@@ -418,7 +436,13 @@ func tasksToDto(tasks []*model.Task, fillUser bool, viewerRole int) []*dto.TaskD
 		item := relay.TaskModel2Dto(task)
 		item.LegacyVideoAvailable = legacyVideoAvailable(task)
 		if task.Status == model.TaskStatusSuccess {
+			// Legacy videos are played straight from the upstream CDN by the
+			// browser when the result URL is directly fetchable; otherwise the
+			// capability proxy from the artifacts endpoint stays the fallback.
 			item.ResultURL = ""
+			if item.LegacyVideoAvailable {
+				item.ResultURL = directTaskResultURL(task)
+			}
 			if taskFailReasonIsLegacyResultURL(task.FailReason) {
 				item.FailReason = ""
 			}

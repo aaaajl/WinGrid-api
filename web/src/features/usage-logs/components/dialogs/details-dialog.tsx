@@ -169,6 +169,7 @@ function BillingBreakdown(props: {
   const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const isPeakOffPeak = other.billing_mode === 'peak_offpeak'
+  const isPerChars = other.billing_mode === 'per_chars'
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
@@ -205,12 +206,12 @@ function BillingBreakdown(props: {
       label: t('Billing Mode'),
       value: t('Peak / Off-peak'),
     })
-    const matched =
-      other.matched_tier === 'peak'
-        ? t('Peak')
-        : other.matched_tier === 'off_peak'
-          ? t('Off-peak')
-          : other.matched_tier
+    let matched = other.matched_tier
+    if (other.matched_tier === 'peak') {
+      matched = t('Peak')
+    } else if (other.matched_tier === 'off_peak') {
+      matched = t('Off-peak')
+    }
     if (matched) {
       rows.push({
         label: t('Matched Tier'),
@@ -243,6 +244,14 @@ function BillingBreakdown(props: {
       rows.push({
         label: t('Billing time'),
         value: other.billing_eval_at,
+      })
+    }
+  } else if (isPerChars) {
+    rows.push({ label: t('Billing Mode'), value: t('Per-character') })
+    if (other.price_per_10k_chars != null) {
+      rows.push({
+        label: t('Price per 10K characters'),
+        value: fmtPrice(other.price_per_10k_chars),
       })
     }
   } else if (isPerCall) {
@@ -315,7 +324,7 @@ function BillingBreakdown(props: {
     }
   }
 
-  if (!isTieredExpr && !isPeakOffPeak) {
+  if (!isTieredExpr && !isPeakOffPeak && !isPerChars) {
     if (other.audio_ratio != null && other.audio_ratio !== 1) {
       rows.push({
         label: t('Audio input'),
@@ -408,6 +417,48 @@ function BillingBreakdown(props: {
         value={formatLogQuota(log.quota)}
         mono
       />
+    </DetailSection>
+  )
+}
+
+function PerCharsBreakdown(props: { other: LogOtherData }) {
+  const { t } = useTranslation()
+  const { other } = props
+  if (other.billing_mode !== 'per_chars') return null
+
+  const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+  const rows: Array<{ label: string; value: string }> = []
+  if (other.characters != null) {
+    rows.push({
+      label: t('Billed Characters'),
+      value: other.characters.toLocaleString(),
+    })
+  }
+  if (other.estimated_characters != null) {
+    rows.push({
+      label: t('Estimated Characters'),
+      value: other.estimated_characters.toLocaleString(),
+    })
+  }
+  if (other.price_per_10k_chars != null) {
+    rows.push({
+      label: t('Price per 10K characters'),
+      value: formatBillingCurrencyFromUSD(other.price_per_10k_chars, priceOpts),
+    })
+  }
+  if (other.cost_usd != null) {
+    rows.push({
+      label: t('Cost'),
+      value: formatBillingCurrencyFromUSD(other.cost_usd, priceOpts),
+    })
+  }
+  if (rows.length === 0) return null
+
+  return (
+    <DetailSection label={t('Character Billing')}>
+      {rows.map((row) => (
+        <DetailRow key={row.label} label={row.label} value={row.value} mono />
+      ))}
     </DetailSection>
   )
 }
@@ -1152,11 +1203,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
         {/* Billing breakdown (consume type) */}
         {isConsume && other && !isViolation && (
-          <BillingBreakdown
-            log={props.log}
-            other={other}
-            isAdmin={props.isAdmin}
-          />
+          <>
+            <BillingBreakdown
+              log={props.log}
+              other={other}
+              isAdmin={props.isAdmin}
+            />
+            <PerCharsBreakdown other={other} />
+          </>
         )}
 
         {/* Tiered pricing breakdown (when billing_mode is tiered_expr) */}

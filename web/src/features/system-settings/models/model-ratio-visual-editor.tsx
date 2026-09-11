@@ -70,6 +70,7 @@ import {
   type DurationPricingConfig,
   type ModelRow,
   type PeakOffPeakConfig,
+  type PerCharsPricingConfig,
 } from './model-pricing-snapshots'
 import {
   buildModelRatioColumns,
@@ -89,6 +90,7 @@ type ModelRatioVisualEditorProps = {
   savedBillingExpr: string
   savedDurationPricing: string
   savedPeakOffPeakPricing: string
+  savedPerCharsPricing: string
   modelPrice: string
   modelRatio: string
   cacheRatio: string
@@ -101,6 +103,7 @@ type ModelRatioVisualEditorProps = {
   billingExpr: string
   durationPricing: string
   peakOffPeakPricing: string
+  perCharsPricing: string
   candidateModelNames?: string[]
   candidateModelsLoading?: boolean
   filterMode?: 'all' | 'unset'
@@ -132,6 +135,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedBillingExpr,
     savedDurationPricing,
     savedPeakOffPeakPricing,
+    savedPerCharsPricing,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -144,6 +148,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     billingExpr,
     durationPricing,
     peakOffPeakPricing,
+    perCharsPricing,
     candidateModelNames,
     candidateModelsLoading,
     filterMode = 'all',
@@ -239,6 +244,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingExpr: savedBillingExpr,
       durationPricing: savedDurationPricing,
       peakOffPeakPricing: savedPeakOffPeakPricing,
+      perCharsPricing: savedPerCharsPricing,
     })
     const draftRows = buildModelSnapshots({
       modelPrice,
@@ -253,6 +259,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingExpr,
       durationPricing,
       peakOffPeakPricing,
+      perCharsPricing,
     })
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
@@ -298,6 +305,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedBillingExpr,
     savedDurationPricing,
     savedPeakOffPeakPricing,
+    savedPerCharsPricing,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -310,6 +318,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     billingExpr,
     durationPricing,
     peakOffPeakPricing,
+    perCharsPricing,
   ])
 
   const modeCounts = useMemo(() => {
@@ -319,6 +328,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       tiered_expr: 0,
       per_duration: 0,
       peak_offpeak: 0,
+      per_chars: 0,
       [TASK_PRICING_MODE_FILTER]: 0,
     }
     for (const model of models) {
@@ -326,7 +336,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         model.billingMode === 'per-request' ||
         model.billingMode === 'tiered_expr' ||
         model.billingMode === 'per_duration' ||
-        model.billingMode === 'peak_offpeak'
+        model.billingMode === 'peak_offpeak' ||
+        model.billingMode === 'per_chars'
           ? model.billingMode
           : 'per-token'
       counts[mode] += 1
@@ -351,6 +362,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         editBillingMode = 'per_duration'
       } else if (editableModel.billingMode === 'peak_offpeak') {
         editBillingMode = 'peak_offpeak'
+      } else if (editableModel.billingMode === 'per_chars') {
+        editBillingMode = 'per_chars'
       } else if (editableModel.price && editableModel.price !== '') {
         editBillingMode = 'per-request'
       }
@@ -370,6 +383,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         fallbackPrice: editableModel.fallbackPrice,
         sizePrices: editableModel.sizePrices,
         peakOffPeak: editableModel.peakOffPeak,
+        perCharsPrice: editableModel.perCharsPrice,
       })
       setEditorOpen(true)
       if (isMobile) setSheetOpen(true)
@@ -446,6 +460,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
       const peakOffPeakPricingMap = safeJsonParse<
         Record<string, PeakOffPeakConfig>
       >(peakOffPeakPricing, { fallback: {}, silent: true })
+      const perCharsPricingMap = safeJsonParse<
+        Record<string, PerCharsPricingConfig>
+      >(perCharsPricing, { fallback: {}, silent: true })
 
       delete priceMap[name]
       delete ratioMap[name]
@@ -459,6 +476,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       delete billingExprMap[name]
       delete durationPricingMap[name]
       delete peakOffPeakPricingMap[name]
+      delete perCharsPricingMap[name]
 
       onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
       onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
@@ -487,6 +505,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.peak_offpeak_pricing',
         JSON.stringify(peakOffPeakPricingMap, null, 2)
       )
+      onChange(
+        'billing_setting.per_chars_pricing',
+        JSON.stringify(perCharsPricingMap, null, 2)
+      )
 
       if (editData?.name === name) {
         setEditData(null)
@@ -507,6 +529,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingExpr,
       durationPricing,
       peakOffPeakPricing,
+      perCharsPricing,
       onChange,
       editData,
     ]
@@ -605,6 +628,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
       const peakOffPeakPricingMap = safeJsonParse<
         Record<string, PeakOffPeakConfig>
       >(peakOffPeakPricing, { fallback: {}, silent: true })
+      const perCharsPricingMap = safeJsonParse<
+        Record<string, PerCharsPricingConfig>
+      >(perCharsPricing, { fallback: {}, silent: true })
 
       const setIfPresent = (
         target: Record<string, number>,
@@ -629,6 +655,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         delete billingExprMap[name]
         delete durationPricingMap[name]
         delete peakOffPeakPricingMap[name]
+        delete perCharsPricingMap[name]
 
         if (data.billingMode === 'tiered_expr') {
           const combined = combineBillingExpr(
@@ -675,6 +702,12 @@ const ModelRatioVisualEditorComponent = forwardRef<
             billingModeMap[name] = 'peak_offpeak'
             peakOffPeakPricingMap[name] = cfg
           }
+        } else if (data.billingMode === 'per_chars') {
+          billingModeMap[name] = 'per_chars'
+          const price = Number.parseFloat(data.perCharsPrice || '')
+          perCharsPricingMap[name] = {
+            price_per_10k_chars: Number.isFinite(price) ? price : 0,
+          }
         } else if (data.price && data.price !== '') {
           setIfPresent(priceMap, name, data.price)
         } else {
@@ -715,6 +748,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.peak_offpeak_pricing',
         JSON.stringify(peakOffPeakPricingMap, null, 2)
       )
+      onChange(
+        'billing_setting.per_chars_pricing',
+        JSON.stringify(perCharsPricingMap, null, 2)
+      )
     },
     [
       modelPrice,
@@ -729,6 +766,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       billingExpr,
       durationPricing,
       peakOffPeakPricing,
+      perCharsPricing,
       onChange,
     ]
   )
@@ -837,6 +875,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Peak / Off-peak',
                     value: 'peak_offpeak',
                     count: modeCounts.peak_offpeak,
+                  },
+                  {
+                    label: t('Per 10K Characters'),
+                    value: 'per_chars',
+                    count: modeCounts.per_chars,
                   },
                   {
                     label: 'Expression - Task pricing',
@@ -995,6 +1038,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.savedDurationPricing === nextProps.savedDurationPricing &&
       prevProps.savedPeakOffPeakPricing ===
         nextProps.savedPeakOffPeakPricing &&
+      prevProps.savedPerCharsPricing === nextProps.savedPerCharsPricing &&
       prevProps.modelPrice === nextProps.modelPrice &&
       prevProps.modelRatio === nextProps.modelRatio &&
       prevProps.cacheRatio === nextProps.cacheRatio &&
@@ -1007,6 +1051,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.billingExpr === nextProps.billingExpr &&
       prevProps.durationPricing === nextProps.durationPricing &&
       prevProps.peakOffPeakPricing === nextProps.peakOffPeakPricing &&
+      prevProps.perCharsPricing === nextProps.perCharsPricing &&
       prevProps.candidateModelNames === nextProps.candidateModelNames &&
       prevProps.candidateModelsLoading === nextProps.candidateModelsLoading &&
       prevProps.filterMode === nextProps.filterMode &&

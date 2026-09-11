@@ -598,12 +598,67 @@ it.each([
     },
     text: 'Input0Output0',
   },
+  {
+    name: 'per-duration',
+    effective: { 'billing_setting.billing_mode': 'per_duration' },
+    catalog: {
+      billing_mode: 'per_duration',
+      duration_pricing: {
+        fallback_price: 0.02,
+        size_prices: { '1280x720': 0.01 },
+      },
+    },
+    text: '0.01/sec',
+  },
+  {
+    name: 'per-chars',
+    effective: { 'billing_setting.billing_mode': 'per_chars' },
+    catalog: {
+      billing_mode: 'per_chars',
+      per_chars_pricing: { price_per_10k_chars: 0.6 },
+    },
+    text: '0.6/10Kchars',
+  },
+  {
+    name: 'peak-offpeak',
+    effective: { 'billing_setting.billing_mode': 'peak_offpeak' },
+    catalog: {
+      billing_mode: 'peak_offpeak',
+      peak_offpeak_pricing: {
+        timezone: 'Asia/Shanghai',
+        weekdays_only: true,
+        peak_windows: ['09:00-12:00', '14:00-18:00'],
+        peak: { cache_hit: 0.014, cache_miss: 0.44, completion: 1.32 },
+        off_peak: { cache_hit: 0.007, cache_miss: 0.22, completion: 0.66 },
+      },
+    },
+    text: 'Input$0.22Output$0.66',
+  },
 ])(
   'shows $name effective pricing like the catalog without requiring a listed model',
   async ({ name, effective, catalog, text }) => {
     const model = { ...channel, model_name: name }
+    const catalogModel: PricingModel = {
+      id: 1,
+      model_name: name,
+      quota_type: 0,
+      model_ratio: 0,
+      completion_ratio: 0,
+      enable_groups: [],
+      ...catalog,
+    }
     await renderList([model], {
-      pricing: [{ model_name: name, version: 'v1', configured: {}, effective }],
+      pricing: [
+        {
+          model_name: name,
+          version: 'v1',
+          configured: {},
+          effective,
+          duration_pricing: catalogModel.duration_pricing,
+          peak_offpeak_pricing: catalogModel.peak_offpeak_pricing,
+          per_chars_pricing: catalogModel.per_chars_pricing,
+        },
+      ],
     })
     const button = screen.getByRole('button', {
       name: `View pricing for ${name}`,
@@ -611,19 +666,7 @@ it.each([
     expect(button.textContent?.replaceAll(/\s/g, '')).toContain(text)
     expect(button).not.toHaveTextContent('Unset price')
     expect(button).not.toHaveTextContent('Cache')
-    render(
-      <CatalogPrice
-        model={{
-          id: 1,
-          model_name: name,
-          quota_type: 0,
-          model_ratio: 0,
-          completion_ratio: 0,
-          enable_groups: [],
-          ...catalog,
-        }}
-      />
-    )
+    render(<CatalogPrice model={catalogModel} />)
     expect(button.textContent).toBe(
       screen.getByRole('group', { name: 'Catalog price' }).textContent
     )

@@ -25,6 +25,7 @@ import { getBillingModeLabelKey } from '../lib/billing-mode'
 import { isDynamicPricingModel } from '../lib/dynamic-price'
 import {
   isPeakOffPeakModel,
+  isPerCharsModel,
   isPerDurationModel,
   isTokenBasedModel,
 } from '../lib/model-helpers'
@@ -51,6 +52,9 @@ export function ModelBillingModeBadge(props: ModelBillingModeBadgeProps) {
     variant = 'warning'
   } else if (isPerDurationModel(props.model)) {
     label = t('Per Duration')
+    variant = 'success'
+  } else if (isPerCharsModel(props.model)) {
+    label = t('Per 10K Characters')
     variant = 'success'
   } else if (isTokenBasedModel(props.model)) {
     label = t('Token-based')

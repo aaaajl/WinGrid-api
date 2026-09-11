@@ -23,6 +23,7 @@ import {
   getSafePluginAuthorUrl,
   parseTaskArtifactsResponse,
   resolveTaskPreviewMode,
+  safeDirectMediaUrl,
   shouldLoadTaskArtifacts,
   TaskArtifactApiError,
 } from '../lib/task-artifacts'
@@ -334,6 +335,35 @@ describe('legacy task preview compatibility', () => {
       ),
       'plugin'
     )
+  })
+
+  test('accepts direct CDN result URLs for browser playback', () => {
+    assert.equal(
+      safeDirectMediaUrl('https://cdn.example.com/video.mp4?signature=secret'),
+      'https://cdn.example.com/video.mp4?signature=secret'
+    )
+    assert.equal(
+      safeDirectMediaUrl('http://127.0.0.1:3001/video.mp4'),
+      'http://127.0.0.1:3001/video.mp4'
+    )
+  })
+
+  test('rejects direct media URLs that are not plain HTTP(S) locations', () => {
+    const unsafeUrls: unknown[] = [
+      undefined,
+      '',
+      'javascript:alert(1)',
+      'data:video/mp4;base64,ZGF0YQ==',
+      '/v1/videos/task-public/content',
+      'https://cdn.example.com/video.mp4#fragment',
+      'https://user:secret@cdn.example.com/video.mp4',
+      ' https://cdn.example.com/video.mp4',
+      'https://cdn.example.com/video.mp4\n',
+    ]
+
+    for (const url of unsafeUrls) {
+      assert.equal(safeDirectMediaUrl(url as string | undefined), undefined)
+    }
   })
 })
 

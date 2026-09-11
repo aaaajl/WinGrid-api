@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -57,6 +58,11 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	return request, err
 }
 
+// maxAudioSpeechInputCharacters bounds the TTS input text. It matches the
+// largest per-call limit among supported TTS providers (DashScope Qwen-TTS),
+// keeping the character-billing multiplier bounded before quota calculation.
+const maxAudioSpeechInputCharacters = 20000
+
 func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {
 	audioRequest := &dto.AudioRequest{}
 	err := common.UnmarshalBodyReusable(c, audioRequest)
@@ -67,6 +73,12 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 	case relayconstant.RelayModeAudioSpeech:
 		if audioRequest.Model == "" {
 			return nil, errors.New("model is required")
+		}
+		if strings.TrimSpace(audioRequest.Input) == "" {
+			return nil, errors.New("input is required")
+		}
+		if utf8.RuneCountInString(audioRequest.Input) > maxAudioSpeechInputCharacters {
+			return nil, fmt.Errorf("input must not exceed %d characters", maxAudioSpeechInputCharacters)
 		}
 	default:
 		if audioRequest.Model == "" {

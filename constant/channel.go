@@ -58,15 +58,16 @@ const (
 	ChannelTypeAdvancedCustom = 58
 	ChannelTypeSub2API        = 59
 	ChannelTypeNewAPI         = 60
-	ChannelTypeTaskPlugin = 61
+	ChannelTypeTaskPlugin     = 61
 	// ChannelTypeDummy is the last contiguous channel type ID (inclusive).
 	// High-ID fork types below are registered explicitly and must not use sequential IDs.
 	ChannelTypeDummy = 61
 
 	// High IDs for fork/custom channels so they do not collide with upstream allocations.
-	ChannelTypeHappyHorse = 961
-	ChannelTypeAgnesVideo = 962
-	ChannelTypeWan30Video = 963
+	ChannelTypeHappyHorse   = 961
+	ChannelTypeAgnesVideo   = 962
+	ChannelTypeWan30Video   = 963
+	ChannelTypeBailianAudio = 964
 )
 
 var ChannelBaseURLs = []string{
@@ -136,8 +137,9 @@ var ChannelBaseURLs = []string{
 
 // channelBaseURLExtras holds default base URLs for non-contiguous channel type IDs.
 var channelBaseURLExtras = map[int]string{
-	ChannelTypeHappyHorse: "https://dashscope.aliyuncs.com",
-	ChannelTypeAgnesVideo: "https://api.agnes-ai.cn",
+	ChannelTypeHappyHorse:   "https://dashscope.aliyuncs.com",
+	ChannelTypeAgnesVideo:   "https://api.agnes-ai.cn",
+	ChannelTypeBailianAudio: "https://dashscope.aliyuncs.com",
 }
 
 // GetChannelBaseURL returns the default base URL for a channel type.
@@ -211,6 +213,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeHappyHorse:     "HappyHorse",
 	ChannelTypeAgnesVideo:     "Agnes Video",
 	ChannelTypeWan30Video:     "Wan Video",
+	ChannelTypeBailianAudio:   "Bailian Audio",
 }
 
 func GetChannelTypeName(channelType int) string {

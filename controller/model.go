@@ -100,6 +100,7 @@ func init() {
 		constant.ChannelTypeHappyHorse,
 		constant.ChannelTypeAgnesVideo,
 		constant.ChannelTypeWan30Video,
+		constant.ChannelTypeBailianAudio,
 	)
 	for _, i := range channelTypesToRegister {
 		apiType, success := common.ChannelType2APIType(i)

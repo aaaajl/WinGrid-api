@@ -45,16 +45,30 @@ export type PricingValues = Partial<Record<PricingKey, number | string>>
 export type PricingOptions = Record<PricingKey, string>
 
 export function modelPricingDisplay(
-  entry: Pick<ModelPricingEntry, 'model_name' | 'effective' | 'usage_schema'>
+  entry: Pick<
+    ModelPricingEntry,
+    | 'model_name'
+    | 'effective'
+    | 'usage_schema'
+    | 'duration_pricing'
+    | 'peak_offpeak_pricing'
+    | 'per_chars_pricing'
+  >
 ): PricingModel {
   const values = entry.effective
+  const billingMode =
+    typeof values['billing_setting.billing_mode'] === 'string'
+      ? values['billing_setting.billing_mode']
+      : undefined
+  const modeSpecific =
+    billingMode === 'per_duration' || billingMode === 'per_chars'
   return {
     id: 0,
     model_name: entry.model_name,
     enable_groups: [],
     quota_type:
-      values.ModelPrice !== undefined &&
-      values['billing_setting.billing_mode'] !== 'tiered_expr'
+      modeSpecific ||
+      (values.ModelPrice !== undefined && billingMode !== 'tiered_expr')
         ? 1
         : 0,
     model_ratio: Number(values.ModelRatio ?? Number.NaN),
@@ -75,15 +89,15 @@ export function modelPricingDisplay(
       values.AudioCompletionRatio === undefined
         ? undefined
         : Number(values.AudioCompletionRatio),
-    billing_mode:
-      typeof values['billing_setting.billing_mode'] === 'string'
-        ? values['billing_setting.billing_mode']
-        : undefined,
+    billing_mode: billingMode,
     billing_expr:
       typeof values['billing_setting.billing_expr'] === 'string'
         ? values['billing_setting.billing_expr']
         : undefined,
     billing_usage_schema: entry.usage_schema,
+    duration_pricing: entry.duration_pricing,
+    peak_offpeak_pricing: entry.peak_offpeak_pricing,
+    per_chars_pricing: entry.per_chars_pricing,
   }
 }
 

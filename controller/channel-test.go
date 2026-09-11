@@ -143,6 +143,11 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = "/v1/responses"
 		}
 
+		// Bailian Audio serves TTS via /v1/audio/speech
+		if channel.Type == constant.ChannelTypeBailianAudio {
+			requestPath = "/v1/audio/speech"
+		}
+
 	}
 	// Gemini 原生流式通过 URL action（:streamGenerateContent）表达而非请求体字段，
 	// GeminiChatRequest.IsStream 依据请求 URL 判定，合成请求路径需与生产入口保持一致

@@ -135,6 +135,7 @@ export const STATIC_I18N_KEYS = [
   'Embeddings',
   'Video',
   'Wan Video',
+  'Bailian Audio',
   'Text to video',
   'First frame',
   'First and last frames',

@@ -76,6 +76,10 @@ export type PricingModel = {
     fallback_price: number
     size_prices?: Record<string, number>
   }
+  /** Per-character pricing when billing_mode is "per_chars" */
+  per_chars_pricing?: {
+    price_per_10k_chars: number
+  }
   /** Peak/off-peak pricing when billing_mode is "peak_offpeak" */
   peak_offpeak_pricing?: {
     timezone: string

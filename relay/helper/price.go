@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/durationbilling"
 	"github.com/QuantumNous/new-api/pkg/peakoffpeak"
+	"github.com/QuantumNous/new-api/pkg/percharsbilling"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -92,6 +93,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 	if billing_setting.IsPeakOffPeakBilling(info.OriginModelName) {
 		return modelPriceHelperPeakOffPeak(c, info, promptTokens, meta, groupRatioInfo)
+	}
+	if billing_setting.IsPerCharsBilling(billingModelName) {
+		return modelPriceHelperPerChars(c, info, meta, groupRatioInfo)
 	}
 
 	var preConsumedQuota int
@@ -338,10 +342,75 @@ func modelPriceHelperPerDuration(c *gin.Context, info *relaycommon.RelayInfo, gr
 	return priceData, nil
 }
 
+// modelPriceHelperPerChars pre-charges character-metered models from the
+// request text. The final charge is recomputed at settlement from the
+// upstream-reported character count.
+func modelPriceHelperPerChars(c *gin.Context, info *relaycommon.RelayInfo, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {
+	modelName := info.GetBillingModelName()
+	cfg, ok := billing_setting.GetPerCharsPricing(modelName)
+	if !ok {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as per_chars but has no per_chars_pricing", modelName)
+	}
+	if err := billing_setting.ValidatePerCharsPricing(cfg); err != nil {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s per_chars_pricing invalid: %w", modelName, err)
+	}
+
+	estimatedChars := 0
+	if meta != nil {
+		estimatedChars = percharsbilling.EstimatedCharacters(meta.CombineText)
+	}
+	costUSD, err := percharsbilling.CostUSD(percharsbilling.Config{PricePer10KChars: cfg.PricePer10KChars}, estimatedChars)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
+
+	quota, err := common.QuotaFromFloatStrict(costUSD * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+	if err != nil {
+		return hosttypes.PriceData{}, err
+	}
+
+	freeModel := false
+	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+		if groupRatioInfo.GroupRatio == 0 || costUSD == 0 {
+			quota = 0
+			freeModel = true
+		}
+	}
+
+	info.PerCharsBilling = &relaycommon.PerCharsBillingInfo{
+		PricePer10KChars: cfg.PricePer10KChars,
+		EstimatedChars:   estimatedChars,
+		CostUSD:          costUSD,
+		GroupRatio:       groupRatioInfo.GroupRatio,
+		QuotaPerUnit:     common.QuotaPerUnit,
+	}
+
+	priceData := hosttypes.PriceData{
+		FreeModel:         freeModel,
+		ModelPrice:        costUSD,
+		UsePrice:          true, // lock settle to the character count, not output tokens
+		Quota:             quota,
+		QuotaToPreConsume: quota,
+		GroupRatioInfo:    groupRatioInfo,
+	}
+
+	if common.DebugEnabled {
+		logger.LogDebug(c, "model_price_helper_per_chars: model=%s estimatedChars=%d costUSD=%g quota=%d",
+			modelName, estimatedChars, costUSD, quota)
+	}
+
+	info.PriceData = priceData
+	return priceData, nil
+}
+
 func HasModelBillingConfig(modelName string) bool {
 	if billing_setting.IsPerDurationBilling(modelName) {
 		cfg, ok := billing_setting.GetDurationPricing(modelName)
 		return ok && billing_setting.ValidateDurationPricing(cfg) == nil
+	}
+	if billing_setting.IsPerCharsBilling(modelName) {
+		cfg, ok := billing_setting.GetPerCharsPricing(modelName)
+		return ok && billing_setting.ValidatePerCharsPricing(cfg) == nil
 	}
 	if billing_setting.IsPeakOffPeakBilling(modelName) {
 		cfg, ok := billing_setting.GetPeakOffPeakPricing(modelName)

@@ -187,6 +187,11 @@ type RelayInfo struct {
 	// resolved size / duration / base price used for pre-consume.
 	DurationBilling *DurationBillingInfo
 
+	// PerCharsBilling is set when billing mode is per_chars. It freezes the
+	// price unit and group ratio for settlement and records the request-derived
+	// character estimate; the actual count comes from the upstream usage.
+	PerCharsBilling *PerCharsBillingInfo
+
 	Request dto.Request
 
 	// RequestConversionChain records request format conversions in order, e.g.
@@ -388,6 +393,7 @@ var streamSupportedChannels = map[int]bool{
 	constant.ChannelTypeSub2API:        true,
 	constant.ChannelTypeNewAPI:         true,
 	constant.ChannelTypeTencent:        true,
+	constant.ChannelTypeBailianAudio:   true,
 }
 
 func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
@@ -968,6 +974,17 @@ type DurationBillingInfo struct {
 	BasePrice    float64 `json:"base_price,omitempty"`
 	CostUSD      float64 `json:"cost_usd,omitempty"`
 	UsedFallback bool    `json:"used_fallback,omitempty"`
+}
+
+// PerCharsBillingInfo captures per_chars pre-consume inputs for settlement and
+// logging.
+type PerCharsBillingInfo struct {
+	PricePer10KChars float64 `json:"price_per_10k_chars,omitempty"`
+	EstimatedChars   int     `json:"estimated_chars,omitempty"`
+	ActualChars      int     `json:"actual_chars,omitempty"`
+	CostUSD          float64 `json:"cost_usd,omitempty"`
+	GroupRatio       float64 `json:"group_ratio,omitempty"`
+	QuotaPerUnit     float64 `json:"quota_per_unit,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {

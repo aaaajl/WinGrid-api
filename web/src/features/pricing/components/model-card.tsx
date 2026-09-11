@@ -39,12 +39,14 @@ import { parseTags } from '../lib/filters'
 import {
   getDisplayGroupRatio,
   isPeakOffPeakModel,
+  isPerCharsModel,
   isPerDurationModel,
   isTokenBasedModel,
 } from '../lib/model-helpers'
 import { formatPeakOffPeakUnitPrice } from '../lib/peak-offpeak-price'
 import {
   formatDurationSummaryPrice,
+  formatPerCharsSummaryPrice,
   formatPrice,
   formatRequestPrice,
 } from '../lib/price'
@@ -72,6 +74,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
   const isPerDuration = isPerDurationModel(props.model)
+  const isPerChars = isPerCharsModel(props.model)
   const isPeakOffPeak = isPeakOffPeakModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
@@ -238,6 +241,21 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           )}
         </span>{' '}
         / {t('sec')}
+      </span>
+    )
+  } else if (isPerChars) {
+    priceSummary = (
+      <span className='text-muted-foreground whitespace-nowrap'>
+        <span className='text-foreground font-mono font-semibold'>
+          {formatPerCharsSummaryPrice(
+            props.model,
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            props.selectedGroup
+          )}
+        </span>{' '}
+        / {t('10K chars')}
       </span>
     )
   } else if (isTokenBased) {

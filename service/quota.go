@@ -323,7 +323,12 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 			peakResult = peakRes
 		}
 	}
-	fixedPriceBilling := tieredOk && isFixedPriceSettlement(relayInfo, tieredRes)
+	var perCharsResult *relaycommon.PerCharsBillingInfo
+	perCharsOk, perCharsQuota := false, 0
+	if !tieredOk && !peakOk {
+		perCharsOk, perCharsQuota, perCharsResult = TryPerCharsSettle(relayInfo, usage)
+	}
+	fixedPriceBilling := (tieredOk && isFixedPriceSettlement(relayInfo, tieredRes)) || perCharsOk
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.PromptTokensDetails.TextTokens
@@ -364,11 +369,19 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		quota = tieredQuota
 	} else if peakOk {
 		quota = peakQuota
+	} else if perCharsOk {
+		quota = perCharsQuota
 	}
 
 	totalTokens := usage.TotalTokens
 	var logContent string
-	if !usePrice {
+	if perCharsOk && perCharsResult != nil {
+		// per_chars has no meaningful "model price": the per-request USD cost is
+		// tiny and rounds to 0.00, and the billable unit is the input character
+		// count, not tokens. Report the unit price and character count instead.
+		logContent = fmt.Sprintf("按字符计费：输入字符数 %d，每万字符 $%.4f，费用 $%.6f，分组倍率 %.2f",
+			perCharsResult.ActualChars, perCharsResult.PricePer10KChars, perCharsResult.CostUSD, groupRatio)
+	} else if !usePrice {
 		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
 			modelRatio, completionRatio.InexactFloat64(), audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
 	} else {
@@ -403,6 +416,9 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	if peakResult != nil {
 		InjectPeakOffPeakBillingInfo(other, relayInfo, peakResult)
+	}
+	if perCharsResult != nil {
+		InjectPerCharsBillingInfo(other, relayInfo, perCharsResult)
 	}
 	attachQuotaSaturation(ctx, relayInfo, other)
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

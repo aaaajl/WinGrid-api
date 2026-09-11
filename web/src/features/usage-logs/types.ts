@@ -205,6 +205,14 @@ export interface LogOtherData {
   fixed_price?: number
   expr_b64?: string
   matched_tier?: string
+  /** Billed characters reported upstream when billing_mode === 'per_chars' */
+  characters?: number
+  /** Request-text character count used for the per_chars pre-charge estimate */
+  estimated_characters?: number
+  /** USD price per 10,000 characters when billing_mode === 'per_chars' */
+  price_per_10k_chars?: number
+  /** Settled USD cost when billing_mode === 'per_chars' */
+  cost_usd?: number
   /** RFC3339 eval clock for peak_offpeak */
   billing_eval_at?: string
   /** Applied period $/1M prices when billing_mode === 'peak_offpeak' */

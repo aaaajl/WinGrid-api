@@ -223,6 +223,67 @@ it.each(['0', '0.0000007', '14'])(
   }
 )
 
+it('converts per-duration fallback and size prices while the monetary preview follows the currency', async () => {
+  const editor = renderEditor({
+    billingMode: 'per_duration',
+    fallbackPrice: '2',
+    sizePrices: [{ size: '720P', price: '1' }],
+  })
+  const preview = screen.getByRole('complementary', { name: 'Preview' })
+  expect(within(preview).getByText('$2/s')).toBeVisible()
+  await selectCurrency('Site currency (CNY)')
+  const fallback = screen.getByRole('textbox', { name: 'Fallback price' })
+  expect(fallback).toHaveValue('14')
+  expect(screen.getByRole('textbox', { name: 'Size price' })).toHaveValue('7')
+  expect(within(preview).getByText('¥14/s')).toBeVisible()
+  fireEvent.change(fallback, { target: { value: '21' } })
+  expect(await commit(editor.ref)).toMatchObject({
+    billingMode: 'per_duration',
+    fallbackPrice: '3',
+    sizePrices: [{ size: '720P', price: '1' }],
+  })
+})
+
+it('converts the per-10K-character price while the monetary preview follows the currency', async () => {
+  const editor = renderEditor({
+    billingMode: 'per_chars',
+    perCharsPrice: '0.1',
+  })
+  const preview = screen.getByRole('complementary', { name: 'Preview' })
+  expect(within(preview).getByText('$0.1/10K chars')).toBeVisible()
+  await selectCurrency('Site currency (CNY)')
+  const price = screen.getByRole('textbox', {
+    name: 'Price per 10K characters',
+  })
+  expect(price).toHaveValue('0.7')
+  expect(within(preview).getByText('¥0.7/10K chars')).toBeVisible()
+  fireEvent.change(price, { target: { value: '1.4' } })
+  expect(await commit(editor.ref)).toMatchObject({
+    billingMode: 'per_chars',
+    perCharsPrice: '0.2',
+  })
+})
+
+it('converts peak and off-peak token prices between USD and the site currency', async () => {
+  const editor = renderEditor({
+    billingMode: 'peak_offpeak',
+    peakOffPeak: {
+      timezone: 'Asia/Shanghai',
+      weekdaysOnly: true,
+      peakWindows: [{ start: '09:00', end: '12:00' }],
+      peak: { cacheHit: '0.014', cacheMiss: '0.44', completion: '1.32' },
+      offPeak: { cacheHit: '0.007', cacheMiss: '0.22', completion: '0.66' },
+    },
+  })
+  await selectCurrency('Site currency (CNY)')
+  const cacheMiss = screen.getAllByRole('textbox', { name: 'Cache miss' })[0]
+  expect(cacheMiss).toHaveValue('3.08')
+  fireEvent.change(cacheMiss, { target: { value: '7' } })
+  const saved = await commit(editor.ref)
+  expect(saved).toMatchObject({ billingMode: 'peak_offpeak' })
+  expect(saved?.peakOffPeak?.peak.cacheMiss).toBe('1')
+})
+
 it('uses the custom currency exchange rate instead of the CNY exchange rate', async () => {
   useSystemConfigStore.getState().setConfig({
     currency: {

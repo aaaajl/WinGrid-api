@@ -26,11 +26,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
+import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
 import {
   Select,
   SelectContent,
@@ -39,6 +35,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import {
+  USD_PRICING_CURRENCY,
+  type PricingCurrency,
+} from '@/features/model-pricing/currency'
+import { PricingAmountInput } from '@/features/model-pricing/pricing-amount-input'
 import { COMMON_TIMEZONES } from '@/features/pricing/lib/billing-expr'
 
 import {
@@ -46,30 +47,27 @@ import {
   DEEPSEEK_PRO_PEAK_OFFPEAK_FORM,
   clonePeakOffPeakForm,
   fillOffPeakFromPeak,
-  numericDraftRegex,
   type PeakOffPeakFormValues,
   type PeakOffPeakTokenPriceForm,
 } from './model-pricing-core'
 
 type PeakOffPeakPricingFormProps = {
   value: PeakOffPeakFormValues
+  currency?: PricingCurrency
   onChange: (next: PeakOffPeakFormValues) => void
 }
 
 function PriceFields(props: {
   title: string
   prices: PeakOffPeakTokenPriceForm
+  currency: PricingCurrency
   onChange: (next: PeakOffPeakTokenPriceForm) => void
   action?: React.ReactNode
 }) {
   const { t } = useTranslation()
 
-  const updateField = (
-    field: keyof PeakOffPeakTokenPriceForm,
-    raw: string
-  ) => {
-    if (!numericDraftRegex.test(raw)) return
-    props.onChange({ ...props.prices, [field]: raw })
+  const updateField = (field: keyof PeakOffPeakTokenPriceForm, usd: string) => {
+    props.onChange({ ...props.prices, [field]: usd })
   }
 
   return (
@@ -79,39 +77,42 @@ function PriceFields(props: {
         {props.action}
       </div>
       <div className='mt-2 grid gap-2 sm:grid-cols-3'>
-        <InputGroup>
-          <InputGroupAddon>$</InputGroupAddon>
-          <InputGroupInput
-            inputMode='decimal'
+        <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+          <InputGroupAddon>{props.currency.symbol}</InputGroupAddon>
+          <PricingAmountInput
+            grouped
+            currency={props.currency}
             placeholder='0.014'
             value={props.prices.cacheHit}
-            onChange={(event) => updateField('cacheHit', event.target.value)}
+            onChange={(usd) => updateField('cacheHit', usd)}
             aria-label={t('Cache hit')}
           />
           <InputGroupAddon align='inline-end'>
             {t('Cache hit')}
           </InputGroupAddon>
         </InputGroup>
-        <InputGroup>
-          <InputGroupAddon>$</InputGroupAddon>
-          <InputGroupInput
-            inputMode='decimal'
+        <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+          <InputGroupAddon>{props.currency.symbol}</InputGroupAddon>
+          <PricingAmountInput
+            grouped
+            currency={props.currency}
             placeholder='0.44'
             value={props.prices.cacheMiss}
-            onChange={(event) => updateField('cacheMiss', event.target.value)}
+            onChange={(usd) => updateField('cacheMiss', usd)}
             aria-label={t('Cache miss')}
           />
           <InputGroupAddon align='inline-end'>
             {t('Cache miss')}
           </InputGroupAddon>
         </InputGroup>
-        <InputGroup>
-          <InputGroupAddon>$</InputGroupAddon>
-          <InputGroupInput
-            inputMode='decimal'
+        <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+          <InputGroupAddon>{props.currency.symbol}</InputGroupAddon>
+          <PricingAmountInput
+            grouped
+            currency={props.currency}
             placeholder='1.32'
             value={props.prices.completion}
-            onChange={(event) => updateField('completion', event.target.value)}
+            onChange={(usd) => updateField('completion', usd)}
             aria-label={t('Completion')}
           />
           <InputGroupAddon align='inline-end'>
@@ -120,7 +121,10 @@ function PriceFields(props: {
         </InputGroup>
       </div>
       <FieldDescription>
-        {t('USD price per 1M tokens for cache hit, cache miss, and completion.')}
+        {t(
+          '{{currency}} price per 1M tokens for cache hit, cache miss, and completion.',
+          { currency: props.currency.label }
+        )}
       </FieldDescription>
     </Field>
   )
@@ -129,6 +133,7 @@ function PriceFields(props: {
 export function PeakOffPeakPricingForm(props: PeakOffPeakPricingFormProps) {
   const { t } = useTranslation()
   const form = props.value
+  const currency = props.currency ?? USD_PRICING_CURRENCY
 
   const patch = (partial: Partial<PeakOffPeakFormValues>) => {
     props.onChange({ ...form, ...partial })
@@ -209,7 +214,7 @@ export function PeakOffPeakPricingForm(props: PeakOffPeakPricingFormProps) {
         <div className='mt-2 grid gap-2'>
           {form.peakWindows.map((row, index) => (
             <div
-              key={`peak-window-${index}`}
+              key={`${row.start}-${row.end}`}
               className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2'
             >
               <Input
@@ -260,12 +265,14 @@ export function PeakOffPeakPricingForm(props: PeakOffPeakPricingFormProps) {
       <PriceFields
         title={t('Peak')}
         prices={form.peak}
+        currency={currency}
         onChange={(peak) => patch({ peak })}
       />
 
       <PriceFields
         title={t('Off-peak')}
         prices={form.offPeak}
+        currency={currency}
         onChange={(offPeak) => patch({ offPeak })}
         action={
           <Button

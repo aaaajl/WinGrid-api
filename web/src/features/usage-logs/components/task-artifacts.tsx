@@ -61,6 +61,7 @@ import { cn } from '@/lib/utils'
 import { getTaskArtifacts } from '../api'
 import {
   resolveTaskPreviewMode,
+  safeDirectMediaUrl,
   shouldLoadTaskArtifacts,
 } from '../lib/task-artifacts'
 import type { TaskArtifact, TaskArtifactType, TaskLog } from '../types'
@@ -396,9 +397,9 @@ function EmptyTaskArtifacts() {
   )
 }
 
-function LegacyTaskArtifacts(props: { legacyContentUrl?: string }) {
-  if (props.legacyContentUrl) {
-    return <LegacyVideoMedia contentUrl={props.legacyContentUrl} />
+function LegacyTaskArtifacts(props: { contentUrl?: string }) {
+  if (props.contentUrl) {
+    return <LegacyVideoMedia contentUrl={props.contentUrl} />
   }
   return <EmptyTaskArtifacts />
 }
@@ -407,6 +408,12 @@ export function TaskArtifactsCell(props: { log: TaskLog }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const previewMode = resolveTaskPreviewMode(props.log)
+  // Legacy videos prefer the upstream CDN so playback does not depend on the
+  // capability proxy; unreachable URLs fall back to the proxied content URL.
+  const directVideoUrl =
+    previewMode === 'legacy-video'
+      ? safeDirectMediaUrl(props.log.result_url)
+      : undefined
 
   if (!shouldLoadTaskArtifacts(props.log, true)) {
     return <span className='text-muted-foreground/60 text-xs'>-</span>
@@ -464,13 +471,17 @@ export function TaskArtifactsCell(props: { log: TaskLog }) {
         contentHeight='auto'
         bodyClassName='pr-2 sm:pr-4'
       >
-        <TaskArtifacts
-          taskId={props.log.task_id}
-          enabled={shouldLoadTaskArtifacts(props.log, open)}
-          emptyContent={(legacyContentUrl) => (
-            <LegacyTaskArtifacts legacyContentUrl={legacyContentUrl} />
-          )}
-        />
+        {directVideoUrl ? (
+          <LegacyVideoMedia contentUrl={directVideoUrl} />
+        ) : (
+          <TaskArtifacts
+            taskId={props.log.task_id}
+            enabled={shouldLoadTaskArtifacts(props.log, open)}
+            emptyContent={(legacyContentUrl) => (
+              <LegacyTaskArtifacts contentUrl={legacyContentUrl} />
+            )}
+          />
+        )}
       </Dialog>
     </>
   )

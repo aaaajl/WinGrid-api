@@ -17,25 +17,29 @@ import (
 )
 
 const (
-	BillingModeRatio          = "ratio"
-	BillingModeTieredExpr     = "tiered_expr"
-	BillingModePerDuration    = "per_duration"
-	BillingModePeakOffPeak    = "peak_offpeak"
-	BillingModeField          = "billing_mode"
-	BillingExprField          = "billing_expr"
-	DurationPricingField      = "duration_pricing"
-	PeakOffPeakPricingField   = "peak_offpeak_pricing"
-	maxTaskExprSmokeTests     = 64
+	BillingModeRatio        = "ratio"
+	BillingModeTieredExpr   = "tiered_expr"
+	BillingModePerDuration  = "per_duration"
+	BillingModePeakOffPeak  = "peak_offpeak"
+	BillingModePerChars     = "per_chars"
+	BillingModeField        = "billing_mode"
+	BillingExprField        = "billing_expr"
+	DurationPricingField    = "duration_pricing"
+	PeakOffPeakPricingField = "peak_offpeak_pricing"
+	PerCharsPricingField    = "per_chars_pricing"
+	maxTaskExprSmokeTests   = 64
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr,
-// billing_setting.duration_pricing, billing_setting.peak_offpeak_pricing
+// billing_setting.duration_pricing, billing_setting.peak_offpeak_pricing,
+// billing_setting.per_chars_pricing
 type BillingSetting struct {
 	BillingMode        map[string]string              `json:"billing_mode"`
 	BillingExpr        map[string]string              `json:"billing_expr"`
 	DurationPricing    map[string]DurationPriceConfig `json:"duration_pricing"`
 	PeakOffPeakPricing map[string]PeakOffPeakConfig   `json:"peak_offpeak_pricing"`
+	PerCharsPricing    map[string]PerCharsPriceConfig `json:"per_chars_pricing"`
 }
 
 var billingSetting = BillingSetting{
@@ -43,6 +47,7 @@ var billingSetting = BillingSetting{
 	BillingExpr:        make(map[string]string),
 	DurationPricing:    make(map[string]DurationPriceConfig),
 	PeakOffPeakPricing: make(map[string]PeakOffPeakConfig),
+	PerCharsPricing:    make(map[string]PerCharsPriceConfig),
 }
 
 func init() {
@@ -127,6 +132,9 @@ func GetPricingSyncData(base map[string]any) map[string]any {
 	}
 	if peakOffPeak := GetPeakOffPeakPricingCopy(); len(peakOffPeak) > 0 {
 		extra[PeakOffPeakPricingField] = peakOffPeak
+	}
+	if perChars := GetPerCharsPricingCopy(); len(perChars) > 0 {
+		extra[PerCharsPricingField] = perChars
 	}
 	return lo.Assign(base, extra)
 }

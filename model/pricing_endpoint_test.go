@@ -7,9 +7,71 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConfiguredBillingModePricingExposesValidatedConfig(t *testing.T) {
+	billingConfig := config.GlobalConfig.Get("billing_setting")
+	require.NotNil(t, billingConfig)
+	previous := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() {
+		require.NoError(t, config.UpdateConfigFromMap(billingConfig, map[string]string{
+			"billing_mode":         previous["billing_setting.billing_mode"],
+			"duration_pricing":     previous["billing_setting.duration_pricing"],
+			"peak_offpeak_pricing": previous["billing_setting.peak_offpeak_pricing"],
+			"per_chars_pricing":    previous["billing_setting.per_chars_pricing"],
+		}))
+	})
+	require.NoError(t, config.UpdateConfigFromMap(billingConfig, map[string]string{
+		"billing_mode": `{
+			"duration-model": "per_duration",
+			"peak-model": "peak_offpeak",
+			"chars-model": "per_chars"
+		}`,
+		"duration_pricing": `{
+			"duration-model": {"fallback_price": 0.02, "size_prices": {"1280x720": 0.01}}
+		}`,
+		"peak_offpeak_pricing": `{
+			"peak-model": {
+				"timezone": "Asia/Shanghai",
+				"weekdays_only": true,
+				"peak_windows": [{"start": "09:00", "end": "12:00"}],
+				"peak": {"cache_hit": 0.014, "cache_miss": 0.44, "completion": 1.32},
+				"off_peak": {"cache_hit": 0.007, "cache_miss": 0.22, "completion": 0.66}
+			}
+		}`,
+		"per_chars_pricing": `{"chars-model": {"price_per_10k_chars": 0.6}}`,
+	}))
+
+	duration := configuredBillingModePricing("duration-model")
+	require.Equal(t, billing_setting.BillingModePerDuration, duration.mode)
+	require.NotNil(t, duration.duration)
+	assert.Equal(t, 0.02, duration.duration.FallbackPrice)
+	assert.Equal(t, 0.01, duration.duration.SizePrices["1280x720"])
+
+	peak := configuredBillingModePricing("peak-model")
+	require.Equal(t, billing_setting.BillingModePeakOffPeak, peak.mode)
+	require.NotNil(t, peak.peak)
+	assert.Equal(t, []string{"09:00-12:00"}, peak.peak.PeakWindows)
+	assert.Equal(t, 0.44, peak.peak.Peak.CacheMiss)
+	assert.Equal(t, 0.66, peak.peak.OffPeak.Completion)
+
+	chars := configuredBillingModePricing("chars-model")
+	require.Equal(t, billing_setting.BillingModePerChars, chars.mode)
+	require.NotNil(t, chars.perChars)
+	assert.Equal(t, 0.6, chars.perChars.PricePer10KChars)
+
+	// A configured mode without a valid config must not be exposed as priced.
+	require.NoError(t, config.UpdateConfigFromMap(billingConfig, map[string]string{
+		"billing_mode":      `{"chars-model": "per_chars"}`,
+		"per_chars_pricing": `{}`,
+	}))
+	assert.Empty(t, configuredBillingModePricing("chars-model").mode)
+	assert.Empty(t, configuredBillingModePricing("unconfigured-model").mode)
+}
 
 func resetPricingEndpointTestTables(t *testing.T) {
 	t.Helper()

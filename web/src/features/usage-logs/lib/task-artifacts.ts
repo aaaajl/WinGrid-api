@@ -175,6 +175,40 @@ export function shouldLoadTaskArtifacts(
   return dialogOpen && log.status === TASK_STATUS.SUCCESS
 }
 
+/**
+ * Accepts an upstream CDN URL the browser can fetch directly for playback.
+ * Capability-proxy URLs, credentials, fragments, and non-HTTP schemes are
+ * rejected so callers fall back to the proxied content URL.
+ */
+export function safeDirectMediaUrl(value?: string): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (
+    trimmed.length === 0 ||
+    trimmed !== value ||
+    trimmed.includes('#') ||
+    trimmed.includes('\\') ||
+    !/^https?:\/\//i.test(trimmed)
+  ) {
+    return undefined
+  }
+  try {
+    const url = new URL(trimmed)
+    if (
+      (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+      url.hostname.length === 0 ||
+      url.username ||
+      url.password ||
+      url.hash
+    ) {
+      return undefined
+    }
+    return trimmed
+  } catch {
+    return undefined
+  }
+}
+
 export function resolveTaskPreviewMode(
   log: TaskLog,
   hasProjectedArtifacts = false

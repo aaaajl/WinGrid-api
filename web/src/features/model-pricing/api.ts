@@ -24,7 +24,7 @@ import {
 } from '@tanstack/react-query'
 import { t } from 'i18next'
 
-import type { BillingUsageSchema } from '@/features/pricing/types'
+import type { BillingUsageSchema, PricingModel } from '@/features/pricing/types'
 import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
 import { createServerError } from '@/lib/server-error-message'
@@ -43,6 +43,9 @@ export type ModelPricingEntry = {
   configured: PricingValues
   effective: PricingValues
   usage_schema?: BillingUsageSchema
+  duration_pricing?: PricingModel['duration_pricing']
+  peak_offpeak_pricing?: PricingModel['peak_offpeak_pricing']
+  per_chars_pricing?: PricingModel['per_chars_pricing']
 }
 
 export type ModelPricingConfig = {

@@ -36,6 +36,11 @@ type ModelPricingEntry struct {
 	Configured  PricingValues                        `json:"configured"`
 	Effective   PricingValues                        `json:"effective"`
 	UsageSchema map[string]jsplugin.UsageFieldSchema `json:"usage_schema,omitempty"`
+	// Mode-specific pricing maps are not part of the flat option values, so the
+	// resolved public shapes are exposed alongside them for the model list.
+	DurationPricing    *DurationPricingPublic    `json:"duration_pricing,omitempty"`
+	PeakOffPeakPricing *PeakOffPeakPricingPublic `json:"peak_offpeak_pricing,omitempty"`
+	PerCharsPricing    *PerCharsPricingPublic    `json:"per_chars_pricing,omitempty"`
 }
 
 type ModelPricingSnapshot struct {
@@ -183,6 +188,11 @@ func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
 	for _, name := range names {
 		configured := modelPricingValues(values, name)
 		entry := ModelPricingEntry{ModelName: name, Version: ModelPricingVersion(configured), Configured: configured, Effective: effectiveModelPricing(values, name)}
+		if modePricing := configuredBillingModePricing(name); modePricing.mode != "" {
+			entry.DurationPricing = modePricing.duration
+			entry.PeakOffPeakPricing = modePricing.peak
+			entry.PerCharsPricing = modePricing.perChars
+		}
 		if plugin, ok := generation.GetByModel(name); ok {
 			entry.UsageSchema = plugin.Meta.UsageSchema
 		} else if target, ok := ResolveTaskModelAlias(generation, name); ok {
@@ -225,7 +235,9 @@ func ValidateModelPricing(name string, values PricingValues) error {
 			return fmt.Errorf("unsupported pricing field: %s", key)
 		}
 		if key == "billing_setting.billing_mode" {
-			if value != "ratio" && value != "tiered_expr" {
+			if value != billing_setting.BillingModeRatio &&
+				value != billing_setting.BillingModeTieredExpr &&
+				value != billing_setting.BillingModePerChars {
 				return errors.New("invalid billing mode")
 			}
 			continue

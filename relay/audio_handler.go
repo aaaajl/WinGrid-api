@@ -67,10 +67,14 @@ func AudioHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
-	if usage.(*dto.Usage).CompletionTokenDetails.AudioTokens > 0 || usage.(*dto.Usage).PromptTokensDetails.AudioTokens > 0 {
-		service.PostAudioConsumeQuota(c, info, usage.(*dto.Usage), "")
+	audioUsage := usage.(*dto.Usage)
+	if audioUsage.CompletionTokenDetails.AudioTokens > 0 ||
+		audioUsage.PromptTokensDetails.AudioTokens > 0 ||
+		audioUsage.Characters > 0 ||
+		info.PerCharsBilling != nil {
+		service.PostAudioConsumeQuota(c, info, audioUsage, "")
 	} else {
-		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
+		service.PostTextConsumeQuota(c, info, audioUsage, nil)
 	}
 
 	return nil

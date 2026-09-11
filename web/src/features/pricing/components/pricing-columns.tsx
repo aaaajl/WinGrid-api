@@ -28,25 +28,12 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { parseTags } from '../lib/filters'
-import {
-  getDisplayGroupRatio,
-  isPeakOffPeakModel,
-  isPerDurationModel,
-} from '../lib/model-helpers'
-import {
-  formatPeakOffPeakUnitPrice,
-  formatPeakOffPeakWindowsSummary,
-} from '../lib/peak-offpeak-price'
-import {
-  formatDurationSummaryPrice,
-  stripTrailingZeros,
-} from '../lib/price'
 import type { PricingModel } from '../types'
 import { CachedPriceCell } from './cached-price-cell'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
-import { ModelPriceCell, type ModelPriceCellOptions } from './model-price-cell'
+import type { ModelPriceCellOptions } from './model-price-cell'
+import { ModelPriceSummaryCell } from './model-price-summary-cell'
 
 // ----------------------------------------------------------------------------
 // Pricing Table Columns
@@ -58,13 +45,6 @@ export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {
   const { t } = useTranslation()
-  const {
-    tokenUnit = DEFAULT_TOKEN_UNIT,
-    priceRate = 1,
-    usdExchangeRate = 1,
-    showRechargePrice = false,
-    selectedGroup,
-  } = options
 
   return [
     // Model column
@@ -109,71 +89,9 @@ export function usePricingColumns(
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title={t('Price')} />
       ),
-      cell: ({ row }) => {
-        const model = row.original
-
-        if (isPeakOffPeakModel(model)) {
-          const cfg = model.peak_offpeak_pricing
-          const peakPriceOptions = {
-            tokenUnit,
-            showRechargePrice,
-            priceRate,
-            usdExchangeRate,
-            groupRatioMultiplier: getDisplayGroupRatio(model, selectedGroup),
-          }
-          const inputPrice = stripTrailingZeros(
-            formatPeakOffPeakUnitPrice(
-              cfg?.off_peak.cache_miss ?? 0,
-              peakPriceOptions
-            )
-          )
-          const outputPrice = stripTrailingZeros(
-            formatPeakOffPeakUnitPrice(
-              cfg?.off_peak.completion ?? 0,
-              peakPriceOptions
-            )
-          )
-          return (
-            <div className='max-w-full min-w-0'>
-              <div className='font-mono text-xs leading-5 tabular-nums'>
-                <div>
-                  {t('From')} {t('Input')} {inputPrice}
-                </div>
-                <div>
-                  {t('Output')} {outputPrice}
-                </div>
-              </div>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                {formatPeakOffPeakWindowsSummary(model, t)}
-              </div>
-            </div>
-          )
-        }
-
-        if (isPerDurationModel(model)) {
-          const price = stripTrailingZeros(
-            formatDurationSummaryPrice(
-              model,
-              showRechargePrice,
-              priceRate,
-              usdExchangeRate,
-              selectedGroup
-            )
-          )
-          return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {t('From')} {price}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {t('sec')}
-              </div>
-            </div>
-          )
-        }
-
-        return <ModelPriceCell model={model} options={options} />
-      },
+      cell: ({ row }) => (
+        <ModelPriceSummaryCell model={row.original} options={options} />
+      ),
       size: 180,
       enableSorting: false,
     },

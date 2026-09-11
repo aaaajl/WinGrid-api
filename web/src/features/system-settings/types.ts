@@ -222,6 +222,7 @@ export type ModelSettings = {
   'billing_setting.billing_expr': string
   'billing_setting.duration_pricing': string
   'billing_setting.peak_offpeak_pricing': string
+  'billing_setting.per_chars_pricing': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
@@ -283,6 +284,7 @@ export type BillingSettings = {
   'billing_setting.billing_expr': string
   'billing_setting.duration_pricing': string
   'billing_setting.peak_offpeak_pricing': string
+  'billing_setting.per_chars_pricing': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string

@@ -50,6 +50,7 @@ export type PricingMode =
   | 'tiered_expr'
   | 'per_duration'
   | 'peak_offpeak'
+  | 'per_chars'
 
 export type DurationSizePriceRow = {
   size: string
@@ -57,6 +58,7 @@ export type DurationSizePriceRow = {
 }
 
 export const DEFAULT_DURATION_FALLBACK_PRICE = '10'
+export const DEFAULT_PER_CHARS_PRICE = '0.1'
 export const DEFAULT_DURATION_SIZE_PRICES: DurationSizePriceRow[] = [
   { size: '480P', price: '1' },
   { size: '720P', price: '1' },
@@ -278,6 +280,7 @@ export type ModelRatioData = {
   fallbackPrice?: string
   sizePrices?: DurationSizePriceRow[]
   peakOffPeak?: PeakOffPeakFormValues
+  perCharsPrice?: string
 }
 
 export type PreviewRow = {
@@ -435,6 +438,7 @@ export function buildPreviewRows(
   fallbackPrice = '',
   sizePrices: DurationSizePriceRow[] = [],
   peakOffPeak: PeakOffPeakFormValues = DEFAULT_PEAK_OFFPEAK_FORM,
+  perCharsPrice = '',
   currency: PricingCurrency = USD_PRICING_CURRENCY
 ): PreviewRow[] {
   if (mode === 'tiered_expr') {
@@ -453,19 +457,37 @@ export function buildPreviewRows(
   if (mode === 'per_duration') {
     const sizeLines = sizePrices
       .filter((row) => row.size.trim() !== '')
-      .map((row) => `${row.size.trim()}: $${row.price || '0'}/s`)
+      .map(
+        (row) =>
+          `${row.size.trim()}: ${formatPricingAmount(row.price || '0', currency)}/s`
+      )
     return [
       { key: 'mode', label: 'BillingMode', value: 'per_duration' },
       {
         key: 'fallback',
         label: t('Fallback price'),
-        value: fallbackPrice ? `$${fallbackPrice}/s` : t('Empty'),
+        value: fallbackPrice
+          ? `${formatPricingAmount(fallbackPrice, currency)}/s`
+          : t('Empty'),
       },
       {
         key: 'sizes',
         label: t('Size prices'),
         value: sizeLines.length > 0 ? sizeLines.join('\n') : t('Empty'),
         multiline: true,
+      },
+    ]
+  }
+
+  if (mode === 'per_chars') {
+    return [
+      { key: 'mode', label: 'BillingMode', value: 'per_chars' },
+      {
+        key: 'perCharsPrice',
+        label: t('Price per 10K characters'),
+        value: perCharsPrice
+          ? `${formatPricingAmount(perCharsPrice, currency)}/10K chars`
+          : t('Empty'),
       },
     ]
   }
@@ -494,12 +516,12 @@ export function buildPreviewRows(
       {
         key: 'peak',
         label: t('Peak'),
-        value: `in $${peakOffPeak.peak.cacheMiss || '0'} / out $${peakOffPeak.peak.completion || '0'}`,
+        value: `in ${formatPricingAmount(peakOffPeak.peak.cacheMiss || '0', currency)} / out ${formatPricingAmount(peakOffPeak.peak.completion || '0', currency)}`,
       },
       {
         key: 'offPeak',
         label: t('Off-peak'),
-        value: `in $${peakOffPeak.offPeak.cacheMiss || '0'} / out $${peakOffPeak.offPeak.completion || '0'}`,
+        value: `in ${formatPricingAmount(peakOffPeak.offPeak.cacheMiss || '0', currency)} / out ${formatPricingAmount(peakOffPeak.offPeak.completion || '0', currency)}`,
       },
     ]
   }

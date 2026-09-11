@@ -25,7 +25,7 @@ import { ErrorState } from '@/components/error-state'
 import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
-import { ModelPriceCell } from '@/features/pricing/components/model-price-cell'
+import { ModelPriceSummaryCell } from '@/features/pricing/components/model-price-summary-cell'
 import { isDynamicPricingModel } from '@/features/pricing/lib/dynamic-price'
 import { formatPrice } from '@/features/pricing/lib/price'
 import {
@@ -157,7 +157,7 @@ export function ModelPricingPanel(props: {
                 {t('Current Billing')}
               </h3>
               <div className='max-w-xs'>
-                <ModelPriceCell
+                <ModelPriceSummaryCell
                   model={effectivePricing}
                   options={{ tokenUnit: 'M' }}
                   showExpression={false}

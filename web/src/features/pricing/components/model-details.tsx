@@ -79,6 +79,7 @@ import { parseTags } from '../lib/filters'
 import {
   getAvailableGroups,
   isPeakOffPeakModel,
+  isPerCharsModel,
   isPerDurationModel,
   isTokenBasedModel,
 } from '../lib/model-helpers'
@@ -92,6 +93,7 @@ import {
   formatGroupPrice,
   getDurationPriceEntries,
   getDurationStartingPriceUSD,
+  getPerCharsPriceUSD,
 } from '../lib/price'
 import {
   evaluateTaskUsageExamples,
@@ -674,6 +676,7 @@ function PriceSection(props: {
   const { t } = useTranslation()
   const isTokenBased = isTokenBasedModel(props.model)
   const isPerDuration = isPerDurationModel(props.model)
+  const isPerChars = isPerCharsModel(props.model)
   const isPeakOffPeak = isPeakOffPeakModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const baseGroupKey = '_base'
@@ -691,6 +694,7 @@ function PriceSection(props: {
     ? getDurationPriceEntries(props.model)
     : []
   const durationFallback = Number(props.model.duration_pricing?.fallback_price)
+  const perCharsPrice = isPerChars ? getPerCharsPriceUSD(props.model) : null
   const peakCfg = props.model.peak_offpeak_pricing
 
   const primaryPriceTypes: { label: string; type: PriceType }[] = [
@@ -890,6 +894,34 @@ function PriceSection(props: {
               })}
             </div>
           </div>
+        )}
+      </section>
+    )
+  }
+
+  if (isPerChars) {
+    return (
+      <section>
+        <SectionTitle>{t('Base Price')}</SectionTitle>
+        {perCharsPrice != null ? (
+          <div className='bg-muted/20 rounded-lg border p-3'>
+            <div className='text-foreground font-mono text-base font-semibold tabular-nums'>
+              {formatDurationUnitPrice(
+                perCharsPrice,
+                1,
+                props.showRechargePrice,
+                props.priceRate,
+                props.usdExchangeRate
+              )}
+              <span className='text-muted-foreground/40 ml-1 text-xs font-normal'>
+                / {t('10K chars')}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className='text-muted-foreground text-sm'>
+            {t('Price not configured.')}
+          </p>
         )}
       </section>
     )
@@ -1126,11 +1158,13 @@ function GroupPricingSection(props: {
 
   const isTokenBased = isTokenBasedModel(props.model)
   const isPerDuration = isPerDurationModel(props.model)
+  const isPerChars = isPerCharsModel(props.model)
   const isPeakOffPeak = isPeakOffPeakModel(props.model)
   const tokenUnitLabel = props.tokenUnit === 'K' ? '1K' : '1M'
   const durationStartingPrice = isPerDuration
     ? getDurationStartingPriceUSD(props.model)
     : null
+  const perCharsPrice = isPerChars ? getPerCharsPriceUSD(props.model) : null
   const peakCfg = props.model.peak_offpeak_pricing
 
   const extraPriceTypes = useMemo(() => {
@@ -1524,6 +1558,16 @@ function GroupPricingSection(props: {
       props.usdExchangeRate
     )
   }
+  const renderPerCharsGroupPrice = (group: string) => {
+    if (perCharsPrice == null) return '-'
+    return formatDurationUnitPrice(
+      perCharsPrice,
+      props.groupRatio[group] || 1,
+      showRechargePrice,
+      props.priceRate,
+      props.usdExchangeRate
+    )
+  }
 
   return (
     <section>
@@ -1580,10 +1624,15 @@ function GroupPricingSection(props: {
                   header: isPerDuration ? t('From') : t('Price'),
                   className: `${thClass} text-right`,
                   cellClassName: 'py-2.5 text-right font-mono',
-                  cell: (group: string) =>
-                    isPerDuration
-                      ? `${renderDurationGroupPrice(group)} / ${t('sec')}`
-                      : renderFixedGroupPrice(group),
+                  cell: (group: string) => {
+                    if (isPerDuration) {
+                      return `${renderDurationGroupPrice(group)} / ${t('sec')}`
+                    }
+                    if (isPerChars) {
+                      return `${renderPerCharsGroupPrice(group)} / ${t('10K chars')}`
+                    }
+                    return renderFixedGroupPrice(group)
+                  },
                 },
               ]),
         ]}
@@ -1597,6 +1646,11 @@ function GroupPricingSection(props: {
         {isPerDuration && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
             {t('Starting price per second; final charge = rate × duration')}
+          </p>
+        )}
+        {isPerChars && (
+          <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
+            {t('Price per 10,000 characters.')}
           </p>
         )}
       </div>

@@ -51,11 +51,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from '@/components/ui/input-group'
+import { InputGroup, InputGroupAddon } from '@/components/ui/input-group'
 import {
   Sheet,
   SheetContent,
@@ -85,6 +81,7 @@ import {
   DEFAULT_DURATION_FALLBACK_PRICE,
   DEFAULT_DURATION_SIZE_PRICES,
   DEFAULT_PEAK_OFFPEAK_FORM,
+  DEFAULT_PER_CHARS_PRICE,
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
   PEAK_OFFPEAK_TIME_REGEX,
@@ -94,7 +91,6 @@ import {
   createModelPricingSchema,
   hasValue,
   laneConfigs,
-  numericDraftRegex,
   peakOffPeakFormToConfig,
   ratioFieldByLane,
   toNumberOrNull,
@@ -137,6 +133,17 @@ export type ModelPricingEditorPanelHandle = {
 }
 
 const DEFAULT_TOKEN_BILLING_EXPR = 'tier("base", p * 0 + c * 0)'
+
+// A task model with any of these modes already has an explicit pricing
+// configuration, so the editor must open on that mode instead of auto-switching
+// to the expression editor.
+const DEFINITE_PRICING_MODES = new Set<PricingMode>([
+  'per-request',
+  'tiered_expr',
+  'per_duration',
+  'peak_offpeak',
+  'per_chars',
+])
 
 export const ModelPricingSheet = forwardRef<
   ModelPricingEditorPanelHandle,
@@ -229,6 +236,7 @@ export const ModelPricingEditorPanel = forwardRef<
   const [peakOffPeak, setPeakOffPeak] = useState<PeakOffPeakFormValues>(() =>
     clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM)
   )
+  const [perCharsPrice, setPerCharsPrice] = useState(DEFAULT_PER_CHARS_PRICE)
   const [editorReloadToken, setEditorReloadToken] = useState(0)
   const autoSwitchedForRef = useRef<string | null>(null)
   const isEditMode = !!editData
@@ -310,6 +318,8 @@ export const ModelPricingEditorPanel = forwardRef<
         nextMode = 'per_duration'
       } else if (editData.billingMode === 'peak_offpeak') {
         nextMode = 'peak_offpeak'
+      } else if (editData.billingMode === 'per_chars') {
+        nextMode = 'per_chars'
       } else if (editData.price) {
         nextMode = 'per-request'
       }
@@ -329,6 +339,7 @@ export const ModelPricingEditorPanel = forwardRef<
           ? clonePeakOffPeakForm(editData.peakOffPeak)
           : clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM)
       )
+      setPerCharsPrice(editData.perCharsPrice || DEFAULT_PER_CHARS_PRICE)
     } else {
       form.reset({
         name: '',
@@ -347,6 +358,7 @@ export const ModelPricingEditorPanel = forwardRef<
       setFallbackPrice(DEFAULT_DURATION_FALLBACK_PRICE)
       setSizePrices(DEFAULT_DURATION_SIZE_PRICES)
       setPeakOffPeak(clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM))
+      setPerCharsPrice(DEFAULT_PER_CHARS_PRICE)
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -358,7 +370,12 @@ export const ModelPricingEditorPanel = forwardRef<
 
   useEffect(() => {
     if (!editData) return
-    if (editData.billingMode === 'tiered_expr') return
+    if (
+      editData.billingMode &&
+      DEFINITE_PRICING_MODES.has(editData.billingMode)
+    ) {
+      return
+    }
     if (editData.price || editData.ratio) return
 
     const schema = usageSchema ?? usageSchemaByModel.get(editData.name)
@@ -370,9 +387,8 @@ export const ModelPricingEditorPanel = forwardRef<
   }, [editData, usageSchemaByModel, usageSchema])
 
   useEffect(() => {
-    let originalMode: PricingMode = 'per-token'
-    if (editData?.billingMode === 'tiered_expr') originalMode = 'tiered_expr'
-    else if (editData?.price) originalMode = 'per-request'
+    const originalMode: PricingMode =
+      editData?.billingMode ?? (editData?.price ? 'per-request' : 'per-token')
     onDirtyChange?.(
       form.formState.isDirty ||
         pricingMode !== originalMode ||
@@ -515,6 +531,9 @@ export const ModelPricingEditorPanel = forwardRef<
     if (nextMode === 'peak_offpeak' && peakOffPeak.peakWindows.length === 0) {
       setPeakOffPeak(clonePeakOffPeakForm(DEFAULT_PEAK_OFFPEAK_FORM))
     }
+    if (nextMode === 'per_chars' && !perCharsPrice) {
+      setPerCharsPrice(DEFAULT_PER_CHARS_PRICE)
+    }
   }
 
   const previewRows = useMemo(
@@ -531,6 +550,7 @@ export const ModelPricingEditorPanel = forwardRef<
         fallbackPrice,
         sizePrices,
         peakOffPeak,
+        perCharsPrice,
         currency
       ),
     [
@@ -539,6 +559,7 @@ export const ModelPricingEditorPanel = forwardRef<
       laneEnabled,
       lanePrices,
       peakOffPeak,
+      perCharsPrice,
       pricingMode,
       promptPrice,
       requestRuleExpr,
@@ -692,6 +713,16 @@ export const ModelPricingEditorPanel = forwardRef<
       }
     }
 
+    if (pricingMode === 'per_chars') {
+      const price = toNumberOrNull(perCharsPrice)
+      if (price === null || price <= 0) {
+        form.setError('price', {
+          message: t('Price per 10K characters must be a positive number.'),
+        })
+        return false
+      }
+    }
+
     return true
   }, [
     fallbackPrice,
@@ -699,6 +730,7 @@ export const ModelPricingEditorPanel = forwardRef<
     laneEnabled,
     lanePrices,
     peakOffPeak,
+    perCharsPrice,
     pricingMode,
     promptPrice,
     sizePrices,
@@ -739,11 +771,16 @@ export const ModelPricingEditorPanel = forwardRef<
         data.peakOffPeak = clonePeakOffPeakForm(peakOffPeak)
       }
 
+      if (pricingMode === 'per_chars') {
+        data.perCharsPrice = perCharsPrice
+      }
+
       return data
     },
     [
       fallbackPrice,
       peakOffPeak,
+      perCharsPrice,
       pricingMode,
       requestRuleExpr,
       resolvedBillingExpr,
@@ -861,7 +898,7 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-2 sm:grid-cols-5'>
+                  <TabsList className='grid w-full grid-cols-2 sm:grid-cols-6'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
@@ -876,6 +913,9 @@ export const ModelPricingEditorPanel = forwardRef<
                     </TabsTrigger>
                     <TabsTrigger value='peak_offpeak'>
                       {t('Peak / Off-peak')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per_chars'>
+                      {t('Per 10K Characters')}
                     </TabsTrigger>
                   </TabsList>
 
@@ -1057,18 +1097,17 @@ export const ModelPricingEditorPanel = forwardRef<
                     <FieldGroup className='gap-5'>
                       <Field>
                         <FieldLabel>{t('Fallback price')}</FieldLabel>
-                        <InputGroup>
-                          <InputGroupAddon>$</InputGroupAddon>
-                          <InputGroupInput
-                            inputMode='decimal'
+                        <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+                          <InputGroupAddon>
+                            {currency.symbol}
+                          </InputGroupAddon>
+                          <PricingAmountInput
+                            grouped
+                            currency={currency}
+                            aria-label={t('Fallback price')}
                             placeholder='10'
                             value={fallbackPrice}
-                            onChange={(event) => {
-                              const value = event.target.value
-                              if (numericDraftRegex.test(value)) {
-                                setFallbackPrice(value)
-                              }
-                            }}
+                            onChange={setFallbackPrice}
                           />
                           <InputGroupAddon align='inline-end'>
                             {t('per second')}
@@ -1076,7 +1115,8 @@ export const ModelPricingEditorPanel = forwardRef<
                         </InputGroup>
                         <FieldDescription>
                           {t(
-                            'USD per second when the request size is not listed below.'
+                            '{{currency}} per second when the request size is not listed below.',
+                            { currency: currency.label }
                           )}
                         </FieldDescription>
                       </Field>
@@ -1085,13 +1125,14 @@ export const ModelPricingEditorPanel = forwardRef<
                         <FieldLabel>{t('Size prices')}</FieldLabel>
                         <FieldDescription>
                           {t(
-                            'USD per second for each size (for example 720P, 1080P). Total cost = basePrice × duration.'
+                            '{{currency}} per second for each size (for example 720P, 1080P). Total cost = basePrice × duration.',
+                            { currency: currency.label }
                           )}
                         </FieldDescription>
                         <div className='mt-2 grid gap-2'>
                           {sizePrices.map((row, index) => (
                             <div
-                              key={`size-price-${index}`}
+                              key={`${row.size}-${row.price}`}
                               className='grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2'
                             >
                               <Input
@@ -1106,17 +1147,19 @@ export const ModelPricingEditorPanel = forwardRef<
                                   setSizePrices(next)
                                 }}
                               />
-                              <InputGroup>
-                                <InputGroupAddon>$</InputGroupAddon>
-                                <InputGroupInput
-                                  inputMode='decimal'
+                              <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+                                <InputGroupAddon>
+                                  {currency.symbol}
+                                </InputGroupAddon>
+                                <PricingAmountInput
+                                  grouped
+                                  currency={currency}
+                                  aria-label={t('Size price')}
                                   placeholder='1'
                                   value={row.price}
-                                  onChange={(event) => {
-                                    const value = event.target.value
-                                    if (!numericDraftRegex.test(value)) return
+                                  onChange={(usd) => {
                                     const next = [...sizePrices]
-                                    next[index] = { ...row, price: value }
+                                    next[index] = { ...row, price: usd }
                                     setSizePrices(next)
                                   }}
                                 />
@@ -1156,9 +1199,40 @@ export const ModelPricingEditorPanel = forwardRef<
 
                   <TabsContent value='peak_offpeak' className='pt-0'>
                     <PeakOffPeakPricingForm
+                      currency={currency}
                       value={peakOffPeak}
                       onChange={setPeakOffPeak}
                     />
+                  </TabsContent>
+
+                  <TabsContent value='per_chars' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <Field>
+                        <FieldLabel>{t('Price per 10K characters')}</FieldLabel>
+                        <InputGroup className='has-[[data-pricing-error]]:h-auto has-[[data-pricing-error]]:flex-wrap'>
+                          <InputGroupAddon>
+                            {currency.symbol}
+                          </InputGroupAddon>
+                          <PricingAmountInput
+                            grouped
+                            currency={currency}
+                            aria-label={t('Price per 10K characters')}
+                            placeholder='0.1'
+                            value={perCharsPrice}
+                            onChange={setPerCharsPrice}
+                          />
+                          <InputGroupAddon align='inline-end'>
+                            {t('per 10K chars')}
+                          </InputGroupAddon>
+                        </InputGroup>
+                        <FieldDescription>
+                          {t(
+                            '{{currency}} per 10,000 characters. Total cost = characters / 10000 × price.',
+                            { currency: currency.label }
+                          )}
+                        </FieldDescription>
+                      </Field>
+                    </FieldGroup>
                   </TabsContent>
                 </Tabs>
               </FieldGroup>

@@ -39,11 +39,16 @@ export type ModelPricingSnapshotInput = {
   billingExpr: string
   durationPricing?: string
   peakOffPeakPricing?: string
+  perCharsPricing?: string
 }
 
 export type DurationPricingConfig = {
   fallback_price?: number
   size_prices?: Record<string, number>
+}
+
+export type PerCharsPricingConfig = {
+  price_per_10k_chars?: number
 }
 
 export type { PeakOffPeakConfig }
@@ -64,6 +69,7 @@ export type ModelPricingSnapshot = {
   fallbackPrice?: string
   sizePrices?: { size: string; price: string }[]
   peakOffPeak?: PeakOffPeakFormValues
+  perCharsPrice?: string
   hasConflict: boolean
 }
 
@@ -83,6 +89,7 @@ export const isBasePricingUnset = (snapshot?: ModelPricingSnapshot) =>
   (snapshot.billingMode !== 'tiered_expr' &&
     snapshot.billingMode !== 'per_duration' &&
     snapshot.billingMode !== 'peak_offpeak' &&
+    snapshot.billingMode !== 'per_chars' &&
     !hasPricingValue(snapshot.price) &&
     !hasPricingValue(snapshot.ratio))
 
@@ -99,11 +106,41 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
   return formatPricingNumber(ratioNumber * denominatorNumber)
 }
 
+const hasPositivePricingValue = (value?: string) => {
+  const num = toNumberOrNull(value)
+  return num !== null && num > 0
+}
+
+// Configured task pricing means the model carries a usable definite-charge
+// mode: expression, per-duration, per-chars, or a fixed per-request price.
+// Token pricing and peak/off-peak leave task models without a task-ready charge.
+export const hasConfiguredTaskPricing = (snapshot?: ModelPricingSnapshot) => {
+  if (!snapshot) return false
+  if (snapshot.billingMode === 'tiered_expr') {
+    return hasPricingValue(snapshot.billingExpr)
+  }
+  if (snapshot.billingMode === 'per_duration') {
+    const hasSizePrice =
+      snapshot.sizePrices?.some((sizePrice) =>
+        hasPositivePricingValue(sizePrice.price)
+      ) ?? false
+    return hasPositivePricingValue(snapshot.fallbackPrice) || hasSizePrice
+  }
+  if (snapshot.billingMode === 'per_chars') {
+    return hasPositivePricingValue(snapshot.perCharsPrice)
+  }
+  if (snapshot.billingMode === 'per-request') {
+    return hasPricingValue(snapshot.price)
+  }
+  return false
+}
+
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
   if (mode === 'per_duration') return 'Per-duration'
   if (mode === 'peak_offpeak') return 'Peak / Off-peak'
+  if (mode === 'per_chars') return 'Per-chars'
   return 'Per-token'
 }
 
@@ -113,6 +150,7 @@ export const getModeVariant = (
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
   if (mode === 'per_duration') return 'neutral'
+  if (mode === 'per_chars') return 'neutral'
   if (mode === 'peak_offpeak') return 'warning'
   return 'success'
 }
@@ -140,6 +178,11 @@ export const getPriceSummary = (
     return count > 0
       ? `${t('Per-duration')} · ${count} ${t('sizes')}`
       : t('Per-duration')
+  }
+  if (row.billingMode === 'per_chars') {
+    return row.perCharsPrice
+      ? `${t('Per 10K Characters')} $${row.perCharsPrice}`
+      : t('Unset price')
   }
   if (row.billingMode === 'peak_offpeak') {
     const peakIn = row.peakOffPeak?.peak.cacheMiss
@@ -172,6 +215,9 @@ export const getPriceDetail = (
     return row.fallbackPrice
       ? `${t('Fallback')} $${row.fallbackPrice}/s`
       : t('Size × duration pricing')
+  }
+  if (row.billingMode === 'per_chars') {
+    return t('Priced per 10,000 characters')
   }
   if (row.billingMode === 'peak_offpeak') {
     const windows = row.peakOffPeak?.peakWindows
@@ -216,6 +262,7 @@ export const buildModelSnapshots = ({
   billingExpr,
   durationPricing = '{}',
   peakOffPeakPricing = '{}',
+  perCharsPricing = '{}',
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -269,6 +316,12 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'peak offpeak pricing',
   })
+  const perCharsPricingMap = safeJsonParse<
+    Record<string, PerCharsPricingConfig>
+  >(perCharsPricing, {
+    fallback: {},
+    context: 'per chars pricing',
+  })
 
   const modelNames = new Set([
     ...Object.keys(priceMap),
@@ -283,6 +336,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(billingExprMap),
     ...Object.keys(durationPricingMap),
     ...Object.keys(peakOffPeakPricingMap),
+    ...Object.keys(perCharsPricingMap),
   ])
 
   return [...modelNames].map((name) => {
@@ -331,6 +385,27 @@ export const buildModelSnapshots = ({
         fallbackPrice:
           cfg.fallback_price !== undefined ? String(cfg.fallback_price) : '',
         sizePrices,
+        price,
+        ratio,
+        cacheRatio: cache,
+        createCacheRatio: createCache,
+        completionRatio: completion,
+        imageRatio: image,
+        audioRatio: audio,
+        audioCompletionRatio: audioCompletion,
+        hasConflict: false,
+      }
+    }
+
+    if (modeForModel === 'per_chars') {
+      const cfg = perCharsPricingMap[name] || {}
+      return {
+        name,
+        billingMode: 'per_chars',
+        perCharsPrice:
+          cfg.price_per_10k_chars !== undefined
+            ? String(cfg.price_per_10k_chars)
+            : '',
         price,
         ratio,
         cacheRatio: cache,
@@ -401,5 +476,6 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     fallbackPrice: snapshot.fallbackPrice || '',
     sizePrices: snapshot.sizePrices || [],
     peakOffPeak: snapshot.peakOffPeak || undefined,
+    perCharsPrice: snapshot.perCharsPrice || '',
   })
 }

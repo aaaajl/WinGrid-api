@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -200,4 +201,36 @@ export function parseTaskResult() { return {}; }
 	assert.Equal(t, http.StatusOK, unresolvable.Code)
 	assert.Contains(t, unresolvable.Body.String(), `"success":false`)
 	assert.Contains(t, unresolvable.Body.String(), "no task plugin usage schema")
+}
+
+func TestUpdateOptionPerCharsPricingRoundTrip(t *testing.T) {
+	setupBillingAliasOptionDB(t)
+	const modelName = "qwen-audio-3.0-tts-flash"
+
+	pricing, err := common.Marshal(map[string]billing_setting.PerCharsPriceConfig{
+		modelName: {PricePer10KChars: 0.12},
+	})
+	require.NoError(t, err)
+	body, err := common.Marshal(OptionUpdateRequest{
+		Key:   "billing_setting.per_chars_pricing",
+		Value: string(pricing),
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(string(body)))
+
+	UpdateOption(context)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"success":true`)
+
+	var option model.Option
+	require.NoError(t, model.DB.Where(&model.Option{Key: "billing_setting.per_chars_pricing"}).First(&option).Error)
+	require.Contains(t, option.Value, `"price_per_10k_chars":0.12`)
+
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{option.Key: option.Value}))
+	saved, ok := billing_setting.GetPerCharsPricing(modelName)
+	require.True(t, ok)
+	require.Equal(t, 0.12, saved.PricePer10KChars)
 }

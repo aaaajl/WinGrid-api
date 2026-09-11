@@ -24,9 +24,13 @@ import {
   ENDPOINT_TYPES,
 } from '../constants'
 import type { PricingModel } from '../types'
-import { isPeakOffPeakModel, isPerDurationModel } from './model-helpers'
+import {
+  isPeakOffPeakModel,
+  isPerCharsModel,
+  isPerDurationModel,
+} from './model-helpers'
 import { getPeakOffPeakSortPrice } from './peak-offpeak-price'
-import { getDurationStartingPriceUSD } from './price'
+import { getDurationStartingPriceUSD, getPerCharsPriceUSD } from './price'
 import { hasTaskUsageSchema } from './dynamic-price'
 
 // ----------------------------------------------------------------------------
@@ -117,6 +121,9 @@ function getModelPrice(model: PricingModel): number {
   }
   if (isPerDurationModel(model)) {
     return getDurationStartingPriceUSD(model) ?? Number.POSITIVE_INFINITY
+  }
+  if (isPerCharsModel(model)) {
+    return getPerCharsPriceUSD(model) ?? Number.POSITIVE_INFINITY
   }
   return model.quota_type === 0 ? model.model_ratio : model.model_price || 0
 }

@@ -104,6 +104,17 @@ func modelManagementRequest(t *testing.T, handler gin.HandlerFunc, method, path 
 	return recorder
 }
 
+func TestValidateModelPricingAcceptsPerCharsMode(t *testing.T) {
+	require.NoError(t, model.ValidateModelPricing("qwen-audio-3.0-tts-flash", model.PricingValues{
+		"billing_setting.billing_mode": billing_setting.BillingModePerChars,
+	}))
+
+	err := model.ValidateModelPricing("qwen-audio-3.0-tts-flash", model.PricingValues{
+		"billing_setting.billing_mode": "per_character",
+	})
+	require.Error(t, err)
+}
+
 func TestModelManagementDatabaseMatrix(t *testing.T) {
 	_, err := jsplugin.DefaultRegistry.Register(`
 export const meta = {apiVersion: 1, key: "model-management-task", name: "Management task fixture", version: "1.0.0", author: {name: "Test"}, models: ["matrix-task"], fetchMode: "per_task", usageSchema: {seconds: {type: "number", unit: "second"}}};

@@ -158,6 +158,7 @@ function PricingFormFixture(props: {
     BillingExpr: '{}',
     DurationPricing: '{}',
     PeakOffPeakPricing: '{}',
+    PerCharsPricing: '{}',
     ExposeRatioEnabled: false,
   }
   const [actionsContainer, setActionsContainer] =

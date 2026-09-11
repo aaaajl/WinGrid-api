@@ -385,3 +385,16 @@ func InjectPeakOffPeakBillingInfo(other *model.LogOther, relayInfo *relaycommon.
 		},
 	})
 }
+
+// InjectPerCharsBillingInfo overlays per-character billing fields onto the
+// consume log other map.
+func InjectPerCharsBillingInfo(other *model.LogOther, relayInfo *relaycommon.RelayInfo, info *relaycommon.PerCharsBillingInfo) {
+	if relayInfo == nil || other == nil || info == nil {
+		return
+	}
+	other.SetPublic("billing_mode", billing_setting.BillingModePerChars)
+	other.SetPublic("characters", info.ActualChars)
+	other.SetPublic("estimated_characters", info.EstimatedChars)
+	other.SetPublic("price_per_10k_chars", info.PricePer10KChars)
+	other.SetPublic("cost_usd", info.CostUSD)
+}

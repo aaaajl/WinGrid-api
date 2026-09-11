@@ -35,7 +35,7 @@ import {
   type ModelPricingConfig,
 } from '@/features/model-pricing/api'
 import { modelPricingDisplay } from '@/features/model-pricing/pricing'
-import { ModelPriceCell } from '@/features/pricing/components/model-price-cell'
+import { ModelPriceSummaryCell } from '@/features/pricing/components/model-price-summary-cell'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
@@ -185,7 +185,7 @@ export function useModelsColumns(
               setOpen('price-model')
             }}
           >
-            <ModelPriceCell
+            <ModelPriceSummaryCell
               model={modelPricingDisplay(
                 entry ?? { model_name: row.original.model_name, effective: {} }
               )}

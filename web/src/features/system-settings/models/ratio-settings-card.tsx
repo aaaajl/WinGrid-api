@@ -129,6 +129,7 @@ const createModelSchema = (t: Translate) =>
     BillingExpr: createJsonStringField(t),
     DurationPricing: createJsonStringField(t),
     PeakOffPeakPricing: createJsonStringField(t),
+    PerCharsPricing: createJsonStringField(t),
   })
 
 const createGroupSchema = (t: Translate) =>
@@ -236,6 +237,7 @@ export function RatioSettingsCard({
     BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
     DurationPricing: normalizeJsonString(modelDefaults.DurationPricing),
     PeakOffPeakPricing: normalizeJsonString(modelDefaults.PeakOffPeakPricing),
+    PerCharsPricing: normalizeJsonString(modelDefaults.PerCharsPricing),
   })
   const [savedModelValues, setSavedModelValues] = useState(
     modelNormalizedDefaults.current
@@ -277,6 +279,7 @@ export function RatioSettingsCard({
       PeakOffPeakPricing: formatJsonForTextarea(
         modelDefaults.PeakOffPeakPricing
       ),
+      PerCharsPricing: formatJsonForTextarea(modelDefaults.PerCharsPricing),
     },
   })
 
@@ -313,6 +316,7 @@ export function RatioSettingsCard({
       BillingExpr: normalizeJsonString(modelDefaults.BillingExpr),
       DurationPricing: normalizeJsonString(modelDefaults.DurationPricing),
       PeakOffPeakPricing: normalizeJsonString(modelDefaults.PeakOffPeakPricing),
+      PerCharsPricing: normalizeJsonString(modelDefaults.PerCharsPricing),
     }
     setSavedModelValues(modelNormalizedDefaults.current)
 
@@ -334,6 +338,7 @@ export function RatioSettingsCard({
       PeakOffPeakPricing: formatJsonForTextarea(
         modelDefaults.PeakOffPeakPricing
       ),
+      PerCharsPricing: formatJsonForTextarea(modelDefaults.PerCharsPricing),
     })
   }, [modelDefaults, modelForm])
 
@@ -380,6 +385,7 @@ export function RatioSettingsCard({
         BillingExpr: normalizeJsonString(values.BillingExpr),
         DurationPricing: normalizeJsonString(values.DurationPricing),
         PeakOffPeakPricing: normalizeJsonString(values.PeakOffPeakPricing),
+        PerCharsPricing: normalizeJsonString(values.PerCharsPricing),
       }
 
       if (!pricingBaseline) return
@@ -398,11 +404,15 @@ export function RatioSettingsCard({
         const peakOffPeakChanged =
           normalized.PeakOffPeakPricing !==
           modelNormalizedDefaults.current.PeakOffPeakPricing
+        const perCharsChanged =
+          normalized.PerCharsPricing !==
+          modelNormalizedDefaults.current.PerCharsPricing
         if (
           !changes.length &&
           !visibilityChanged &&
           !durationChanged &&
-          !peakOffPeakChanged
+          !peakOffPeakChanged &&
+          !perCharsChanged
         ) {
           toast.info(t('No model price changes to save'))
           return
@@ -424,6 +434,12 @@ export function RatioSettingsCard({
           await updateOption.mutateAsync({
             key: 'billing_setting.peak_offpeak_pricing',
             value: normalized.PeakOffPeakPricing,
+          })
+        }
+        if (perCharsChanged) {
+          await updateOption.mutateAsync({
+            key: 'billing_setting.per_chars_pricing',
+            value: normalized.PerCharsPricing,
           })
         }
         const refreshed = await pricingQuery.refetch()
