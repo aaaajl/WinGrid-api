@@ -346,3 +346,47 @@ export interface ImageHistoryItem {
   }>
   profile?: ImageRequestProfile
 }
+
+// ========== Speech synthesis (TTS) types ==========
+
+export type SpeechRequestProfile = 'openai' | 'qwen' | 'minimax' | 'generic'
+
+export interface SpeechCapabilities {
+  voices: string[]
+  response_formats: string[]
+  speed_range: [number, number]
+  fields: string[]
+  /** Provider also accepts voice ids outside `voices` (e.g. cloned voices). */
+  allow_custom_voice: boolean
+}
+
+export interface PlaygroundSpeechModel {
+  model: string
+  tags: string[]
+  groups: string[]
+  profile: SpeechRequestProfile
+  label: string
+  capabilities: SpeechCapabilities
+}
+
+export interface SpeechGenerationRequest {
+  model: string
+  input: string
+  voice?: string
+  response_format?: string
+  speed?: number
+  instructions?: string
+}
+
+export interface SpeechHistoryItem {
+  id: string
+  model: string
+  input: string
+  voice: string
+  responseFormat: string
+  createdAt: number
+  /** base64 data URL, so the clip can be replayed and persisted. */
+  audioDataUrl: string
+  mimeType: string
+  profile?: SpeechRequestProfile
+}

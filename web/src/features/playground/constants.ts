@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
   USER_GROUPS: '/api/user/self/groups',
   PLAYGROUND_VIDEO_MODELS: '/api/user/playground/video-models',
   PLAYGROUND_IMAGE_MODELS: '/api/user/playground/image-models',
+  PLAYGROUND_SPEECH_MODELS: '/api/user/playground/speech-models',
 } as const
 
 // Default group — uses 'default' as the safe fallback; auto-group is
@@ -110,6 +111,7 @@ export const VIDEO_TASK_STATUS = {
 
 export const MODEL_TAGS = {
   T2T: 't2t',
+  T2A: 't2a',
   T2I: 't2i',
   T2V: 't2v',
   I2V: 'i2v',
@@ -140,6 +142,25 @@ export const STORAGE_KEYS_IMAGE = {
 } as const
 
 export const IMAGE_HISTORY_MAX = 20
+
+// ========== Speech synthesis (TTS) constants ==========
+
+export const SPEECH_API_ENDPOINTS = {
+  GENERATIONS: '/v1/audio/speech',
+} as const
+
+export const STORAGE_KEYS_SPEECH = {
+  HISTORY: 'playground_speech_history',
+  TOKEN_ID: 'playground_speech_token_id',
+  DRAFT: 'playground_speech_draft',
+} as const
+
+// Stored drafts inherit the capability contract of the build that wrote them.
+// Bump this whenever the speech capabilities change shape or semantics so a
+// restored draft cannot carry a value the provider now rejects.
+export const SPEECH_DRAFT_VERSION = 2
+
+export const SPEECH_HISTORY_MAX = 10
 
 // Message action labels
 export const MESSAGE_ACTION_LABELS = {

@@ -99,6 +99,7 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.GET("/playground/video-models", controller.GetUserPlaygroundVideoModels)
 				selfRoute.GET("/playground/image-models", controller.GetUserPlaygroundImageModels)
+				selfRoute.GET("/playground/speech-models", controller.GetUserPlaygroundSpeechModels)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.UpdateSelf)
 				selfRoute.DELETE("/self", middleware.DisableCache(), controller.DeleteSelf)
 				selfRoute.GET("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), controller.GenerateAccessToken)

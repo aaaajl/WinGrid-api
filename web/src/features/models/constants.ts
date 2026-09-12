@@ -32,6 +32,7 @@ export const DEFAULT_PAGE_SIZE = 20
 
 export const RESERVED_MODEL_TAGS = [
   't2t',
+  't2a',
   't2i',
   't2v',
   'i2v',

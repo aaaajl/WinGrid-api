@@ -22,6 +22,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import {
   API_ENDPOINTS,
   IMAGE_API_ENDPOINTS,
+  SPEECH_API_ENDPOINTS,
   VIDEO_API_ENDPOINTS,
 } from './constants'
 import type {
@@ -37,6 +38,9 @@ import type {
   ImageGenerationRequest,
   ImageGenerationResponse,
   ImageRequestProfile,
+  PlaygroundSpeechModel,
+  SpeechGenerationRequest,
+  SpeechRequestProfile,
 } from './types'
 
 const IMAGE_PROFILES = new Set<ImageRequestProfile>([
@@ -44,6 +48,13 @@ const IMAGE_PROFILES = new Set<ImageRequestProfile>([
   'dalle3',
   'gpt_image',
   'agnes_image',
+  'generic',
+])
+
+const SPEECH_PROFILES = new Set<SpeechRequestProfile>([
+  'openai',
+  'qwen',
+  'minimax',
   'generic',
 ])
 
@@ -146,6 +157,38 @@ export async function getPlaygroundImageModels(): Promise<
         Array.isArray(item.capabilities.supported_sizes) &&
         IMAGE_PROFILES.has(item.profile)
     ) as PlaygroundImageModel[]
+}
+
+/**
+ * Get catalog-backed playground speech synthesis models (t2a tag + profile).
+ * Filtered by the authenticated user's usable groups on the server.
+ */
+export async function getPlaygroundSpeechModels(): Promise<
+  PlaygroundSpeechModel[]
+> {
+  const res = await api.get(API_ENDPOINTS.PLAYGROUND_SPEECH_MODELS)
+  const { data } = res
+
+  if (!data.success || !Array.isArray(data.data)) {
+    return []
+  }
+
+  return data.data
+    .map((item: Partial<PlaygroundSpeechModel>) => ({
+      model: item.model ?? '',
+      tags: Array.isArray(item.tags) ? item.tags : [],
+      groups: Array.isArray(item.groups) ? item.groups : [],
+      profile: item.profile,
+      label: item.label || item.model || '',
+      capabilities: item.capabilities,
+    }))
+    .filter(
+      (item: PlaygroundSpeechModel) =>
+        !!item.model &&
+        !!item.capabilities &&
+        Array.isArray(item.capabilities.fields) &&
+        SPEECH_PROFILES.has(item.profile)
+    ) as PlaygroundSpeechModel[]
 }
 
 /**
@@ -310,5 +353,47 @@ export async function submitImageGeneration(
       data: [],
       error: { message },
     }
+  }
+}
+
+/**
+ * Submit an OpenAI-compatible speech synthesis request.
+ * The relay returns binary audio, so the response is read as a Blob.
+ */
+export async function submitSpeechGeneration(
+  payload: SpeechGenerationRequest,
+  apiKey: string
+): Promise<{ blob: Blob; contentType: string }> {
+  try {
+    const res = await api.post(SPEECH_API_ENDPOINTS.GENERATIONS, payload, {
+      skipErrorHandler: true,
+      skipBusinessError: true,
+      skipAuthRefresh: true,
+      responseType: 'blob',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    } as Record<string, unknown>)
+    const contentType = String(res.headers?.['content-type'] ?? 'audio/mpeg')
+    return { blob: res.data as Blob, contentType }
+  } catch (err) {
+    const axiosErr = err as {
+      response?: { data?: unknown }
+      message?: string
+    }
+    let message = axiosErr.message || 'Request failed'
+    const data = axiosErr.response?.data
+    if (data instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await data.text()) as {
+          error?: { message?: string }
+          message?: string
+        }
+        message = parsed.error?.message || parsed.message || message
+      } catch {
+        // Non-JSON error body; keep the transport message.
+      }
+    }
+    throw new Error(message)
   }
 }

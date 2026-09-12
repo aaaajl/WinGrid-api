@@ -31,6 +31,11 @@ import {
 } from './components/image-history-list'
 import { ImageInputForm } from './components/image-input-form'
 import { PlaygroundInput } from './components/input/playground-input'
+import {
+  SpeechHistoryList,
+  SpeechResultPreview,
+} from './components/speech-history-list'
+import { SpeechInputForm } from './components/speech-input-form'
 import { VideoInputForm } from './components/video-input-form'
 import { VideoPlayer } from './components/video-player'
 import { VideoTaskQueue } from './components/video-task-queue'
@@ -40,8 +45,10 @@ import {
   usePlaygroundConversation,
   usePlaygroundImageModels,
   usePlaygroundOptions,
+  usePlaygroundSpeechModels,
   usePlaygroundState,
   usePlaygroundVideoModels,
+  useSpeechGeneration,
   useVideoTask,
 } from './hooks'
 import {
@@ -56,6 +63,8 @@ import {
 import type {
   ImageGenerationRequest,
   ImageRequestProfile,
+  SpeechGenerationRequest,
+  SpeechRequestProfile,
   VideoGenerationRequest,
   VideoRequestProfile,
   VideoTaskItem,
@@ -78,6 +87,12 @@ type PendingSubmit =
       req: ImageGenerationRequest
       apiKey: string
       meta?: { profile?: ImageRequestProfile }
+    }
+  | {
+      kind: 'speech'
+      req: SpeechGenerationRequest
+      apiKey: string
+      meta?: { profile?: SpeechRequestProfile }
     }
 
 function resolveInitialTab(): PlaygroundTab {
@@ -148,12 +163,26 @@ export function Playground() {
   } = useImageGeneration()
   const [reusePrompt, setReusePrompt] = useState<string | null>(null)
   const [reusePromptNonce, setReusePromptNonce] = useState(0)
+
+  const {
+    history: speechHistory,
+    previewItem: speechPreview,
+    setPreviewItem: setSpeechPreview,
+    isSubmitting: isSpeechSubmitting,
+    submitError: speechSubmitError,
+    generate: generateSpeech,
+    removeHistoryItem: removeSpeechHistoryItem,
+    clearHistory: clearSpeechHistory,
+  } = useSpeechGeneration()
+  const [reuseSpeechInput, setReuseSpeechInput] = useState<string | null>(null)
+  const [reuseSpeechInputNonce, setReuseSpeechInputNonce] = useState(0)
   const [videoPrompt, setVideoPrompt] = useState(
     () => loadVideoDraft()?.prompt ?? ''
   )
 
   const { videoModels, isLoadingVideoModels } = usePlaygroundVideoModels()
   const { imageModels } = usePlaygroundImageModels()
+  const { speechModels } = usePlaygroundSpeechModels()
   const hasVideoModels = videoModels.length > 0
   const [activeTab, setActiveTab] = useState<PlaygroundTab>(resolveInitialTab)
   const [pendingSubmit, setPendingSubmit] = useState<PendingSubmit | null>(null)
@@ -275,6 +304,21 @@ export function Playground() {
     }
   }
 
+  const runSpeechSubmit = async (
+    req: SpeechGenerationRequest,
+    apiKey: string,
+    meta?: { profile?: SpeechRequestProfile }
+  ) => {
+    try {
+      await generateSpeech(req, apiKey, meta)
+      setReuseSpeechInput(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t('Failed to synthesize speech')
+      )
+    }
+  }
+
   const handleVideoSubmit = async (
     req: VideoGenerationRequest,
     apiKey: string,
@@ -304,6 +348,18 @@ export function Playground() {
     await runImageSubmit(req, apiKey, meta)
   }
 
+  const handleSpeechSubmit = async (
+    req: SpeechGenerationRequest,
+    apiKey: string,
+    meta?: { profile?: SpeechRequestProfile }
+  ) => {
+    if (isSpeechSubmitting) {
+      setPendingSubmit({ kind: 'speech', req, apiKey, meta })
+      return
+    }
+    await runSpeechSubmit(req, apiKey, meta)
+  }
+
   const handleConfirmPendingSubmit = () => {
     const pending = pendingSubmit
     setPendingSubmit(null)
@@ -317,7 +373,24 @@ export function Playground() {
       )
       return
     }
+    if (pending.kind === 'speech') {
+      void runSpeechSubmit(pending.req, pending.apiKey, pending.meta)
+      return
+    }
     void runImageSubmit(pending.req, pending.apiKey, pending.meta)
+  }
+
+  let pendingDialogDesc = t(
+    'You have unfinished video tasks. Submit another request anyway?'
+  )
+  if (pendingSubmit?.kind === 'image') {
+    pendingDialogDesc = t(
+      'An image is still being generated. Submit another request anyway?'
+    )
+  } else if (pendingSubmit?.kind === 'speech') {
+    pendingDialogDesc = t(
+      'A speech synthesis is still in progress. Submit another request anyway?'
+    )
   }
 
   const chatPanel = (
@@ -368,7 +441,12 @@ export function Playground() {
         className='flex size-full min-h-0 flex-col overflow-hidden'
         value={activeTab}
         onValueChange={(value) => {
-          if (value === 'chat' || value === 'image' || value === 'video') {
+          if (
+            value === 'chat' ||
+            value === 'image' ||
+            value === 'video' ||
+            value === 'speech'
+          ) {
             setActiveTab(value)
           }
         }}
@@ -380,6 +458,7 @@ export function Playground() {
             {hasVideoModels && (
               <TabsTrigger value='video'>{t('Video')}</TabsTrigger>
             )}
+            <TabsTrigger value='speech'>{t('Speech')}</TabsTrigger>
           </TabsList>
         </div>
 
@@ -436,6 +515,51 @@ export function Playground() {
               onReusePrompt={(prompt) => {
                 setReusePrompt(prompt)
                 setReusePromptNonce((n) => n + 1)
+              }}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent
+          className='flex min-h-0 flex-1 gap-4 overflow-hidden p-4'
+          value='speech'
+        >
+          <div className='flex w-80 shrink-0 flex-col overflow-y-auto rounded-xl border'>
+            <SpeechInputForm
+              speechModels={speechModels}
+              isSubmitting={isSpeechSubmitting}
+              onReuseInput={reuseSpeechInput}
+              reuseInputNonce={reuseSpeechInputNonce}
+              onSubmit={handleSpeechSubmit}
+            />
+          </div>
+          <div className='flex flex-1 flex-col gap-4 overflow-y-auto'>
+            {speechPreview && (
+              <SpeechResultPreview
+                item={speechPreview}
+                onClose={() => setSpeechPreview(null)}
+              />
+            )}
+            {isSpeechSubmitting && !speechPreview && (
+              <div className='border-border bg-background flex flex-col gap-3 rounded-xl border p-4 shadow-sm'>
+                <Skeleton className='h-3 w-24' />
+                <Skeleton className='h-4 w-48' />
+                <Skeleton className='h-10 w-full rounded-lg' />
+              </div>
+            )}
+            {speechSubmitError && (
+              <div className='border-destructive/50 bg-destructive/10 text-destructive rounded-lg border px-4 py-3 text-sm'>
+                {speechSubmitError}
+              </div>
+            )}
+            <SpeechHistoryList
+              items={speechHistory}
+              onClear={clearSpeechHistory}
+              onPreview={setSpeechPreview}
+              onRemove={removeSpeechHistoryItem}
+              onReuseInput={(input) => {
+                setReuseSpeechInput(input)
+                setReuseSpeechInputNonce((n) => n + 1)
               }}
             />
           </div>
@@ -516,15 +640,7 @@ export function Playground() {
           if (!open) setPendingSubmit(null)
         }}
         title={t('Generation still in progress')}
-        desc={
-          pendingSubmit?.kind === 'image'
-            ? t(
-                'An image is still being generated. Submit another request anyway?'
-              )
-            : t(
-                'You have unfinished video tasks. Submit another request anyway?'
-              )
-        }
+        desc={pendingDialogDesc}
         confirmText={t('Submit anyway')}
         handleConfirm={handleConfirmPendingSubmit}
       />

@@ -17,11 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+  SPEECH_DRAFT_VERSION,
   STORAGE_KEYS,
   STORAGE_KEYS_IMAGE,
+  STORAGE_KEYS_SPEECH,
   STORAGE_KEYS_VIDEO,
 } from '../../constants'
 import type { ImageFormState } from '../image/build-image-request'
+import type { SpeechFormState } from '../speech/build-speech-request'
 import type {
   AgnesVideoFormState,
   GenericFormState,
@@ -31,7 +34,7 @@ import type {
   Wan30FormState,
 } from '../video/build-video-request'
 
-export type PlaygroundTab = 'chat' | 'image' | 'video'
+export type PlaygroundTab = 'chat' | 'image' | 'video' | 'speech'
 
 export interface VideoDraft {
   prompt: string
@@ -49,6 +52,12 @@ export interface ImageDraft {
   model: string
   tokenId: string
   form: ImageFormState | null
+}
+
+export interface SpeechDraft {
+  model: string
+  tokenId: string
+  form: SpeechFormState | null
 }
 
 function readJson<T>(key: string): T | null {
@@ -71,7 +80,14 @@ function writeJson(key: string, value: unknown) {
 
 export function loadActiveTab(): PlaygroundTab | null {
   const value = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB)
-  if (value === 'chat' || value === 'image' || value === 'video') return value
+  if (
+    value === 'chat' ||
+    value === 'image' ||
+    value === 'video' ||
+    value === 'speech'
+  ) {
+    return value
+  }
   return null
 }
 
@@ -135,6 +151,28 @@ export function loadImageDraft(): ImageDraft | null {
 
 export function saveImageDraft(draft: ImageDraft) {
   writeJson(STORAGE_KEYS_IMAGE.DRAFT, draft)
+}
+
+export function loadSpeechDraft(): SpeechDraft | null {
+  const draft = readJson<SpeechDraft & { version?: number }>(
+    STORAGE_KEYS_SPEECH.DRAFT
+  )
+  if (!draft || typeof draft !== 'object') return null
+  // A draft saved by an older capability contract can hold a voice or format
+  // the provider now rejects, so fall back to fresh model defaults.
+  if (draft.version !== SPEECH_DRAFT_VERSION) return null
+  return {
+    model: typeof draft.model === 'string' ? draft.model : '',
+    tokenId: typeof draft.tokenId === 'string' ? draft.tokenId : '',
+    form: draft.form ?? null,
+  }
+}
+
+export function saveSpeechDraft(draft: SpeechDraft) {
+  writeJson(STORAGE_KEYS_SPEECH.DRAFT, {
+    version: SPEECH_DRAFT_VERSION,
+    ...draft,
+  })
 }
 
 export function loadStoredTokenId(key: string): string {
