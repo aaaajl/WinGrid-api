@@ -20,6 +20,10 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import {
+  DEFAULT_CURRENCY_CONFIG,
+  useSystemConfigStore,
+} from '@/stores/system-config-store'
 
 import { updateUserSettings } from '../api'
 import { NotificationTab } from '../components/tabs/notification-tab'
@@ -55,7 +59,12 @@ const settings = {
   upstream_model_update_notify_enabled: true,
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG },
+  })
+})
 
 describe('user settings saves across profile and security', () => {
   it('disabling IP recording sends the latest complete notification settings', async () => {
@@ -170,6 +179,9 @@ describe('user settings saves across profile and security', () => {
     const put = vi
       .spyOn(api, 'put')
       .mockResolvedValue({ data: { success: true } })
+    useSystemConfigStore.getState().setConfig({
+      currency: { ...DEFAULT_CURRENCY_CONFIG },
+    })
     render(
       <NotificationTab
         profile={{ ...profile, setting: JSON.stringify(settings) }}
@@ -179,16 +191,88 @@ describe('user settings saves across profile and security', () => {
     expect(
       screen.queryByRole('switch', { name: 'Record IP Address' })
     ).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('textbox', { name: /Quota Warning Threshold/ })
+    ).toHaveValue('0.0024')
     fireEvent.change(
-      screen.getByRole('spinbutton', { name: 'Quota Warning Threshold' }),
-      { target: { value: '2700' } }
+      screen.getByRole('textbox', { name: /Quota Warning Threshold/ }),
+      { target: { value: '2' } }
     )
     fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
     await waitFor(() => expect(onUpdate).toHaveBeenCalled())
     expect(put).toHaveBeenCalledWith('/api/user/setting', {
       ...settings,
-      quota_warning_threshold: 2700,
+      quota_warning_threshold: 1_000_000,
       record_ip_log: false,
+    })
+  })
+
+  it('saves a site-currency threshold as quota units', async () => {
+    const onUpdate = vi.fn()
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...profile, setting: JSON.stringify(settings) },
+      },
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    useSystemConfigStore.getState().setConfig({
+      currency: { ...DEFAULT_CURRENCY_CONFIG },
+    })
+    render(
+      <NotificationTab
+        profile={{ ...profile, setting: JSON.stringify(settings) }}
+        onUpdate={onUpdate}
+      />
+    )
+    fireEvent.change(
+      screen.getByRole('textbox', { name: /Quota Warning Threshold/ }),
+      { target: { value: '1' } }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled())
+    expect(put).toHaveBeenCalledWith('/api/user/setting', {
+      ...settings,
+      quota_warning_threshold: 500000,
+    })
+  })
+
+  it('keeps a decimal draft while typing a site-currency threshold', async () => {
+    const onUpdate = vi.fn()
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...profile, setting: JSON.stringify(settings) },
+      },
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    useSystemConfigStore.getState().setConfig({
+      currency: { ...DEFAULT_CURRENCY_CONFIG },
+    })
+    render(
+      <NotificationTab
+        profile={{ ...profile, setting: JSON.stringify(settings) }}
+        onUpdate={onUpdate}
+      />
+    )
+    const input = screen.getByRole('textbox', {
+      name: /Quota Warning Threshold/,
+    })
+    fireEvent.change(input, { target: { value: '1.' } })
+    expect(input).toHaveValue('1.')
+    fireEvent.change(input, { target: { value: '1.5' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue('1.5')
+    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled())
+    expect(put).toHaveBeenCalledWith('/api/user/setting', {
+      ...settings,
+      quota_warning_threshold: 750000,
     })
   })
 })

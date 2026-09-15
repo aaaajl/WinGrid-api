@@ -104,15 +104,22 @@ func modelManagementRequest(t *testing.T, handler gin.HandlerFunc, method, path 
 	return recorder
 }
 
-func TestValidateModelPricingAcceptsPerCharsMode(t *testing.T) {
-	require.NoError(t, model.ValidateModelPricing("qwen-audio-3.0-tts-flash", model.PricingValues{
-		"billing_setting.billing_mode": billing_setting.BillingModePerChars,
-	}))
+func TestValidateModelPricingAcceptsKnownBillingModes(t *testing.T) {
+	for _, mode := range []string{
+		billing_setting.BillingModeRatio,
+		billing_setting.BillingModePerDuration,
+		billing_setting.BillingModePeakOffPeak,
+		billing_setting.BillingModePerChars,
+	} {
+		require.NoError(t, model.ValidateModelPricing("qwen-audio-3.0-tts-flash", model.PricingValues{
+			"billing_setting.billing_mode": mode,
+		}), mode)
+	}
 
 	err := model.ValidateModelPricing("qwen-audio-3.0-tts-flash", model.PricingValues{
 		"billing_setting.billing_mode": "per_character",
 	})
-	require.Error(t, err)
+	require.EqualError(t, err, "invalid billing mode")
 }
 
 func TestModelManagementDatabaseMatrix(t *testing.T) {

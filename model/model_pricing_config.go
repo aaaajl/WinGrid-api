@@ -235,9 +235,14 @@ func ValidateModelPricing(name string, values PricingValues) error {
 			return fmt.Errorf("unsupported pricing field: %s", key)
 		}
 		if key == "billing_setting.billing_mode" {
-			if value != billing_setting.BillingModeRatio &&
-				value != billing_setting.BillingModeTieredExpr &&
-				value != billing_setting.BillingModePerChars {
+			mode, ok := value.(string)
+			if !ok || !slices.Contains([]string{
+				billing_setting.BillingModeRatio,
+				billing_setting.BillingModeTieredExpr,
+				billing_setting.BillingModePerDuration,
+				billing_setting.BillingModePeakOffPeak,
+				billing_setting.BillingModePerChars,
+			}, mode) {
 				return errors.New("invalid billing mode")
 			}
 			continue
